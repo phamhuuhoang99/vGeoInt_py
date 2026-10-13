@@ -133,3 +133,36 @@ def create_database(container: str, name: str, *sql_files: str):
     _docker("exec", container, "psql", "-U", "postgres", "-c", f'create database "{name}"')
     for f in sql_files:
         _docker("exec", container, "psql", "-v", "ON_ERROR_STOP=1", "-q", "-U", "postgres", "-d", name, "-f", f"/sql/{f}", timeout=300)
+
+
+ENGINE_SQL = [
+    f"engine/{name}.sql"
+    for name in (
+        "Group", "Class", "Type", "Object", "Note", "Image", "ImageDetail", "Video", "VideoDetail",
+        "Document", "DocumentDetail", "Account", "Aircraft", "Ship", "Tank", "Rocket",
+    )
+]  # same order as vGeoEngine/SQL/init-db.bat
+
+
+@pytest.fixture(scope="module")
+def engine_db(postgis_server):
+    """A fresh vGeoEngine database built from the original SQL scripts; yields (container, host, port, password)."""
+    container, host, port, password = postgis_server
+    create_database(container, "vGeoEngine", *ENGINE_SQL)
+    return container, host, port, password
+
+
+@pytest.fixture
+def engine(qgis_app, engine_db, monkeypatch):
+    """Point vGeoEngine at the test database; returns the open QSqlDatabase."""
+    from vgeoint.engine import context
+
+    _container, host, port, password = engine_db
+    monkeypatch.setenv("VGEOINT_DB_HOST", host)
+    monkeypatch.setenv("VGEOINT_DB_PORT", str(port))
+    monkeypatch.setenv("VGEOINT_DB_PASSWORD", password)
+    context.reset()
+    db = context.database()
+    assert db.isOpen(), db.lastError().text()
+    yield db
+    context.reset()
