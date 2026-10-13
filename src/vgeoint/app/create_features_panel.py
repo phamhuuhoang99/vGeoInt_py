@@ -9,8 +9,8 @@ from functools import cmp_to_key
 
 from qgis.core import Qgis, QgsProject, QgsVectorLayer
 from qgis.gui import QgsDockWidget
-from qgis.PyQt.QtCore import QCollator, QLocale, Qt, pyqtSignal
-from qgis.PyQt.QtWidgets import QLabel, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
+from qgis.PyQt.QtCore import QCollator, QLocale, QSize, Qt, pyqtSignal
+from qgis.PyQt.QtWidgets import QLabel, QLineEdit, QListWidget, QListWidgetItem, QToolBar, QVBoxLayout, QWidget
 
 from vgeoint.common.utils import get_icon
 
@@ -30,19 +30,25 @@ class CreateFeaturesPanel(QgsDockWidget):
         self.setObjectName("CreateFeaturesPanel")
         self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
 
+        # Vẽ | Chọn | Sửa đỉnh | Di chuyển | Thuộc tính | Xóa — actions are added by the main window.
+        self.toolbar = QToolBar()
+        self.toolbar.setIconSize(QSize(22, 22))
         self.filter_edit = QLineEdit()
         self.filter_edit.setPlaceholderText("Tìm lớp...")
         self.filter_edit.setClearButtonEnabled(True)
         self.layer_list = QListWidget()
         hint = QLabel(
-            "Nhấp vào lớp để bắt đầu vẽ.\n"
-            "Điểm: nhấp một lần. Đường / vùng: nhấp từng đỉnh, nhấp đúp hoặc chuột phải để kết thúc."
+            "Nhấp vào lớp để bắt đầu vẽ. Điểm: nhấp một lần. Đường / vùng: nhấp từng đỉnh, "
+            "nhấp đúp hoặc chuột phải để kết thúc.\n"
+            "Chọn: nhấp hoặc kéo khung (Ctrl: thêm/bớt). Sửa đỉnh: kéo đỉnh, nhấp đúp lên cạnh để thêm "
+            "đỉnh, chuột phải lên đỉnh để xóa đỉnh. Phím Delete: xóa đối tượng đang chọn."
         )
         hint.setWordWrap(True)
 
         body = QWidget()
         layout = QVBoxLayout(body)
         layout.setContentsMargins(4, 4, 4, 4)
+        layout.addWidget(self.toolbar)
         layout.addWidget(self.filter_edit)
         layout.addWidget(self.layer_list)
         layout.addWidget(hint)

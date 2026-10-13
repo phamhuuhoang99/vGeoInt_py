@@ -22,10 +22,10 @@ Mode = QgsMapToolCapture.CaptureMode
 
 
 class EditAttributeDialog(QDialog):
-    def __init__(self, parent, feature: QgsFeature):
+    def __init__(self, parent, feature: QgsFeature, title: str = "Nhập thuộc tính"):
         super().__init__(parent)
         self.feature = feature
-        self.setWindowTitle("Nhập thuộc tính")
+        self.setWindowTitle(title)
         self.setModal(True)
 
         grid = QGridLayout(self)
@@ -34,6 +34,10 @@ class EditAttributeDialog(QDialog):
         for i, field in enumerate(fields):
             grid.addWidget(QLabel(field.name(), self), i, 0, 1, 1)
             edit = QLineEdit(self)
+            # Pre-fill current values (used when editing an existing feature's attributes).
+            value = feature.attribute(i)
+            if value is not None and not (hasattr(value, "isNull") and value.isNull()):
+                edit.setText(str(value))
             grid.addWidget(edit, i, 1, 1, 4)
             self.line_edits.append(edit)
 
@@ -51,7 +55,7 @@ class EditAttributeDialog(QDialog):
     def _accept(self):
         for i, edit in enumerate(self.line_edits):
             self.feature.setAttribute(i, edit.text())
-        self.close()
+        self.accept()  # exec() returns Accepted (the C++ only closed the dialog)
 
 
 class AddFeatureTool(QgsMapToolDigitizeFeature):

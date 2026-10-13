@@ -52,6 +52,8 @@ from vgeoint.app import maptools
 from vgeoint.app.create_features_panel import CreateFeaturesPanel
 from vgeoint.app.layer_panel_menu import LayerPanelMenu
 from vgeoint.app.main_controller import MainController
+from vgeoint.app.maptools.add_feature import EditAttributeDialog
+from vgeoint.app.maptools.edit_tools import MoveFeatureTool, SelectFeatureTool, VertexEditTool
 from vgeoint.app.maptools.measure import MeasureTool
 from vgeoint.app.menu_bar import MenuBar
 from vgeoint.app.plugins import load_plugins
@@ -474,6 +476,11 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         self.tool_measure_area = maptools.create_measure_tool(canvas, True)
         self.tool_add_text_annotation = maptools.create_text_annotation_tool(canvas)
         self.tool_tag_counting = maptools.create_tag_annotation_tool(canvas)
+        # Modify tools of the "Tạo đối tượng" panel (not in the C++ app).
+        self.tool_select_features = SelectFeatureTool(canvas)
+        self.tool_vertex_edit = VertexEditTool(canvas)
+        self.tool_move_feature = MoveFeatureTool(canvas)
+        self.tool_select_features.delete_requested.connect(self.delete_selected_features)
 
     # -------------------------------------------------------------- toolbars
     def create_view_tool_bar(self):
@@ -544,6 +551,7 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         self.create_features_panel.visibilityChanged.connect(self._create_features_panel_visibility)
         self.create_features_panel.layer_chosen.connect(self.start_creating)
         self.add_feature_acts: dict = {}
+        self.create_edit_actions()
 
         save_editing_act = QAction(get_icon("SaveEditing.svg"), "Lưu thay đổi", tb)
         tb.addAction(save_editing_act)
@@ -634,6 +642,15 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         if layer is None and not self.create_features_panel.isHidden():
             self.create_features_panel.hide()
         self.create_features_panel.refresh(layer)
+        # Panel modify actions work on the edited layer only.
+        for act in getattr(self, "edit_actions", {}).values():
+            act.setEnabled(layer is not None)
+        edit_tools = [getattr(self, n, None) for n in ("tool_select_features", "tool_vertex_edit", "tool_move_feature")]
+        for tool in filter(None, edit_tools):
+            tool.set_layer(layer)
+        drawing_or_editing = edit_tools + [self.add_tools.get(g) for g in getattr(self, "add_tools", {})]
+        if layer is None and self.map_canvas.mapTool() in [t for t in drawing_or_editing if t is not None]:
+            self.map_canvas.setMapTool(self.tool_identify_feature)
 
     def _create_features_panel_visibility(self, visible: bool):
         self.create_features_act.blockSignals(True)
@@ -704,7 +721,120 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         elif result == Btn.No:
             vlayer.rollBack()
 
+    # ------------------------------------------------- create / modify features
+    def create_edit_actions(self):
+        """Vẽ | Chọn | Sửa đỉnh | Di chuyển | Thuộc tính | Xóa, in the "Tạo đối tượng" panel."""
+        panel_tb = self.create_features_panel.toolbar
+
+        def action(icon: str, text: str, slot, tools=()) -> QAction:
+            act = QAction(get_icon(icon), text, panel_tb)
+            act.setToolTip(text)
+            panel_tb.addAction(act)
+            act.triggered.connect(lambda _c=False: slot())
+            if tools:
+                act.setCheckable(True)
+                for tool in tools:  # the action follows the tool (checked while it is the canvas tool)
+                    tool.setAction(act)
+            return act
+
+        add_tools = (self.tool_add_point_feature, self.tool_add_line_feature, self.tool_add_polygon_feature)
+        self.edit_actions = {
+            "draw": action("mActionCapturePoint.svg", "Vẽ đối tượng mới", self._resume_drawing, add_tools),
+            "select": action("mActionSelectRectangle.svg", "Chọn đối tượng",
+                             lambda: self.activate_edit_tool(self.tool_select_features), [self.tool_select_features]),
+            "vertex": action("mActionVertexTool.svg", "Sửa đỉnh",
+                             lambda: self.activate_edit_tool(self.tool_vertex_edit), [self.tool_vertex_edit]),
+            "move": action("mActionMoveFeature.svg", "Di chuyển đối tượng",
+                           lambda: self.activate_edit_tool(self.tool_move_feature), [self.tool_move_feature]),
+            "attributes": action("mActionFormView.svg", "Sửa thuộc tính đối tượng đang chọn",
+                                 self.edit_selected_attributes),
+            "delete": action("mActionDeleteSelected.svg", "Xóa đối tượng đang chọn (Delete)",
+                             self.delete_selected_features),
+        }
+
+    def _edited_layer_or_warn(self, title: str) -> QgsVectorLayer | None:
+        layer = self.vector_layer_editing()
+        if layer is None:
+            self._push(title, "Chưa bật chỉnh sửa lớp nào", Qgis.MessageLevel.Warning)
+        return layer
+
+    def activate_edit_tool(self, tool):
+        layer = self._edited_layer_or_warn("Chỉnh sửa")
+        if layer is None:
+            if tool.action() is not None:
+                tool.action().setChecked(False)
+            return
+        tool.set_layer(layer)
+        self.map_canvas.setCurrentLayer(layer)
+        self.map_canvas.setMapTool(tool)
+
+    def _resume_drawing(self):
+        layer = self._edited_layer_or_warn("Vẽ đối tượng mới")
+        if layer is None:
+            self.edit_actions["draw"].setChecked(False)
+            return
+        self.start_creating(layer)
+
+    def edit_selected_attributes(self):
+        title = "Sửa thuộc tính"
+        layer = self._edited_layer_or_warn(title)
+        if layer is None:
+            return
+        ids = layer.selectedFeatureIds()
+        if len(ids) != 1:
+            self._push(title, "Hãy chọn đúng một đối tượng (công cụ Chọn)", Qgis.MessageLevel.Warning)
+            return
+        fid = ids[0]
+        feature = layer.getFeature(fid)
+        fields = layer.fields()
+        if not fields.count():
+            self._push(title, "Lớp không có thuộc tính", Qgis.MessageLevel.Info)
+            return
+        dialog = EditAttributeDialog(self, QgsFeature(feature), title)
+        if not dialog.exec():
+            return
+        changes = {}
+        for i, field in enumerate(fields):
+            text = dialog.feature.attribute(i)
+            value = None if text in ("", None) else text
+            if value is not None:
+                try:
+                    value = field.convertCompatible(value)
+                except (ValueError, TypeError):
+                    self._push(
+                        title, f"Giá trị không hợp lệ cho trường {field.name()}: {text}", Qgis.MessageLevel.Critical
+                    )
+                    return
+            if value != feature.attribute(i):
+                changes[i] = value
+        if changes:
+            layer.beginEditCommand(title)
+            layer.changeAttributeValues(fid, changes, {i: feature.attribute(i) for i in changes})
+            layer.endEditCommand()
+            self._push(title, "Đã cập nhật thuộc tính", Qgis.MessageLevel.Info)
+
+    def delete_selected_features(self):
+        title = "Xóa đối tượng"
+        layer = self._edited_layer_or_warn(title)
+        if layer is None:
+            return
+        ids = layer.selectedFeatureIds()
+        if not ids:
+            self._push(title, "Chưa chọn đối tượng nào (công cụ Chọn)", Qgis.MessageLevel.Warning)
+            return
+        layer.beginEditCommand(title)
+        layer.deleteFeatures(ids)
+        layer.endEditCommand()
+        layer.triggerRepaint()
+        self._push(title, f"Đã xóa {len(ids)} đối tượng", Qgis.MessageLevel.Info)
+
     def _remove_selected_feature(self):
+        # Toolbar "Xóa đối tượng": delete the selection made with the panel's select tool if any,
+        # otherwise the C++ behaviour (the feature highlighted by "Chọn đối tượng").
+        edited = self.vector_layer_editing()
+        if edited is not None and edited.selectedFeatureCount():
+            self.delete_selected_features()
+            return
         layer = self.feature_selection_layer
         if layer is not None and layer.isEditable() and self.feature_selection_id >= 0:
             layer.deleteFeature(self.feature_selection_id)
