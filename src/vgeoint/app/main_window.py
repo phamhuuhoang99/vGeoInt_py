@@ -31,6 +31,7 @@ from qgis.gui import (
     QgsRubberBand,
     QgsStatusBar,
 )
+from qgis.PyQt import sip
 from qgis.PyQt.QtCore import QSize, Qt
 from qgis.PyQt.QtGui import QAction, QColor, QCursor, QIcon
 from qgis.PyQt.QtWidgets import (
@@ -50,6 +51,7 @@ from qgis.PyQt.QtWidgets import (
 from vgeoint.app import maptools
 from vgeoint.app.layer_panel_menu import LayerPanelMenu
 from vgeoint.app.main_controller import MainController
+from vgeoint.app.maptools.measure import MeasureTool
 from vgeoint.app.menu_bar import MenuBar
 from vgeoint.app.plugins import RASTER, load_plugins
 from vgeoint.app.status_widgets import CoordinateWidget, ScaleWidget
@@ -207,6 +209,22 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
 
         self.save_settings()
         super().closeEvent(event)
+        self.delete_map_tools()
+
+    def delete_map_tools(self):
+        """Delete map tools while the canvas and CAD dock still exist (the C++ destructor did the same).
+
+        The tools are owned by Python; if they outlive the canvas, their C++ destructors touch freed
+        objects at interpreter shutdown.
+        """
+        self.map_canvas.unsetMapTool(self.map_canvas.mapTool())
+        for name in [n for n in vars(self) if n.startswith("tool_")]:
+            tool = getattr(self, name)
+            if tool is not None and not sip.isdeleted(tool):
+                if isinstance(tool, MeasureTool):
+                    tool.dialog.close()
+                sip.delete(tool)
+            setattr(self, name, None)
 
     def _supported(self, file_name: str) -> str | None:
         ext = Path(file_name).suffix.lstrip(".").upper()
@@ -429,17 +447,18 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         self.tool_zoom_out.setAction(mb.zoom_out_act)
         self.tool_pan_map = QgsMapToolPan(canvas)
         self.tool_pan_map.setAction(mb.pan_map_act)
-        self.tool_add_point_feature = maptools.create_add_feature_tool(canvas, "Point", bar)
-        self.tool_add_line_feature = maptools.create_add_feature_tool(canvas, "Line", bar)
-        self.tool_add_polygon_feature = maptools.create_add_feature_tool(canvas, "Polygon", bar)
+        cad = self.advanced_digitizing_dock_widget
+        self.tool_add_point_feature = maptools.create_add_feature_tool(canvas, cad, "Point", bar)
+        self.tool_add_line_feature = maptools.create_add_feature_tool(canvas, cad, "Line", bar)
+        self.tool_add_polygon_feature = maptools.create_add_feature_tool(canvas, cad, "Polygon", bar)
         self.tool_identify_feature = QgsMapToolIdentifyFeature(canvas)
         # Set cursor to default pointer instead of cross cursor
         self.tool_identify_feature.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
         self.tool_identify_feature.setAction(mb.cursor_click_act)
-        self.tool_measure_dist = maptools.create_measure_tool(canvas, False, bar)
-        self.tool_measure_area = maptools.create_measure_tool(canvas, True, bar)
-        self.tool_add_text_annotation = maptools.create_text_annotation_tool(canvas, bar)
-        self.tool_tag_counting = maptools.create_tag_annotation_tool(canvas, bar)
+        self.tool_measure_dist = maptools.create_measure_tool(canvas, False)
+        self.tool_measure_area = maptools.create_measure_tool(canvas, True)
+        self.tool_add_text_annotation = maptools.create_text_annotation_tool(canvas)
+        self.tool_tag_counting = maptools.create_tag_annotation_tool(canvas)
 
     # -------------------------------------------------------------- toolbars
     def create_view_tool_bar(self):

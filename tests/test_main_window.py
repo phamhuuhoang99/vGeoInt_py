@@ -1,27 +1,9 @@
 """Phase 1: the main window has the same menus, toolbars and docks as the C++ app."""
 
-import pytest
-from qgis.core import QgsProject, QgsVectorLayer
+from qgis.core import QgsVectorLayer
 from qgis.PyQt.QtWidgets import QToolBar
 
 from tests.conftest import action_texts
-
-
-@pytest.fixture
-def window(qgis_app, qtbot, monkeypatch):
-    from qgis.PyQt.QtWidgets import QMessageBox
-
-    from vgeoint.app.main_window import MainWindow
-
-    # Answer every modal question (e.g. the exit confirmation on close) without blocking.
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
-    monkeypatch.setattr(MainWindow, "save_settings", lambda self: None)
-    MainWindow._instance = None
-    w = MainWindow()
-    qtbot.addWidget(w)
-    yield w
-    QgsProject.instance().clear()
-    MainWindow._instance = None
 
 
 def test_menus(window):

@@ -1,38 +1,29 @@
-"""Map tools. Tools ported from the QGIS app sources (measure, add feature, annotations) land in phase 2."""
+"""Map tools ported from the C++ app (measure, add feature, annotations)."""
 
-from qgis.core import Qgis
-from qgis.gui import QgsMapCanvas, QgsMapTool
+from qgis.gui import QgsMapToolCapture
 
-from vgeoint.common.utils import message_timeout
+from vgeoint.app.maptools.add_feature import AddFeatureTool
+from vgeoint.app.maptools.annotation import MapToolTagAnnotation, MapToolTextAnnotation
+from vgeoint.app.maptools.measure import MeasureTool
 
-
-class PendingMapTool(QgsMapTool):
-    """Placeholder that keeps the toolbar/menu wiring of a tool not ported yet."""
-
-    def __init__(self, canvas: QgsMapCanvas, name: str, message_bar=None):
-        super().__init__(canvas)
-        self.name = name
-        self.message_bar = message_bar
-
-    def activate(self):
-        super().activate()
-        if self.message_bar is not None:
-            self.message_bar.pushMessage(
-                self.name, "Công cụ đang được chuyển đổi sang phiên bản mới.", Qgis.MessageLevel.Info, message_timeout()
-            )
+_CAPTURE_MODES = {
+    "Point": QgsMapToolCapture.CaptureMode.CapturePoint,
+    "Line": QgsMapToolCapture.CaptureMode.CaptureLine,
+    "Polygon": QgsMapToolCapture.CaptureMode.CapturePolygon,
+}
 
 
-def create_add_feature_tool(canvas, geometry: str, message_bar):
-    return PendingMapTool(canvas, f"Thêm đối tượng ({geometry})", message_bar)
+def create_add_feature_tool(canvas, cad_dock, geometry: str, message_bar):
+    return AddFeatureTool(canvas, cad_dock, _CAPTURE_MODES[geometry], message_bar)
 
 
-def create_measure_tool(canvas, measure_area: bool, message_bar):
-    return PendingMapTool(canvas, "Đo diện tích" if measure_area else "Đo độ dài", message_bar)
+def create_measure_tool(canvas, measure_area: bool):
+    return MeasureTool(canvas, measure_area)
 
 
-def create_text_annotation_tool(canvas, message_bar):
-    return PendingMapTool(canvas, "Chèn ghi chú văn bản", message_bar)
+def create_text_annotation_tool(canvas):
+    return MapToolTextAnnotation(canvas)
 
 
-def create_tag_annotation_tool(canvas, message_bar):
-    return PendingMapTool(canvas, "Chèn Tag đếm đối tượng", message_bar)
+def create_tag_annotation_tool(canvas):
+    return MapToolTagAnnotation(canvas)

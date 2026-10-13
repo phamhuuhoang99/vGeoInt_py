@@ -14,9 +14,12 @@ from qgis.PyQt.QtGui import QFont, QFontMetrics, QIcon
 
 from vgeoint.common.defines import ORG_NAME, SOFT_NAME
 
+# (organization, application) used for QgsSettings; tests point this at a throwaway scope.
+SETTINGS_SCOPE = (ORG_NAME, SOFT_NAME)
+
 
 def settings() -> QgsSettings:
-    return QgsSettings(ORG_NAME, SOFT_NAME)
+    return QgsSettings(*SETTINGS_SCOPE)
 
 
 def message_timeout() -> int:
