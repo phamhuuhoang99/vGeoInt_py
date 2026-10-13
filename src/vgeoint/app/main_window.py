@@ -49,6 +49,7 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from vgeoint.app import maptools
+from vgeoint.app.create_features_panel import CreateFeaturesPanel
 from vgeoint.app.layer_panel_menu import LayerPanelMenu
 from vgeoint.app.main_controller import MainController
 from vgeoint.app.maptools.measure import MeasureTool
@@ -530,6 +531,20 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         vector_menu.addSeparator()
         vector_menu.addAction(start_editing_act)
 
+        # ArcGIS-style "Create Features": shown while editing, opens the target-layer panel.
+        self.create_features_act = QAction(get_icon("CreateVector.svg"), "Tạo đối tượng", tb)
+        self.create_features_act.setCheckable(True)
+        self.create_features_act.setToolTip("Tạo đối tượng: chọn lớp cần thêm")
+        tb.addAction(self.create_features_act)
+        vector_menu.addAction(self.create_features_act)
+        self.create_features_panel = CreateFeaturesPanel(self)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.create_features_panel)
+        self.create_features_panel.hide()
+        self.create_features_act.toggled.connect(self.create_features_panel.setVisible)
+        self.create_features_panel.visibilityChanged.connect(self._create_features_panel_visibility)
+        self.create_features_panel.layer_chosen.connect(self.start_creating)
+        self.add_feature_acts: dict = {}
+
         save_editing_act = QAction(get_icon("SaveEditing.svg"), "Lưu thay đổi", tb)
         tb.addAction(save_editing_act)
         vector_menu.addAction(save_editing_act)
@@ -544,6 +559,7 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             tb.addAction(act)
             vector_menu.addAction(act)
             tool.setAction(act)
+            self.add_feature_acts[geom] = act
             act.triggered.connect(lambda _c=False, a=act, g=geom: self.add_feature(a, g))
             tool.deactivated.connect(lambda a=act: a.setChecked(False))
 
@@ -607,6 +623,35 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             act.setToolTip("Bật chỉnh sửa layer vector đang chọn")
         else:
             act.setToolTip(f"Đang chỉnh sửa: {layer.name()} — bấm để tắt chỉnh sửa")
+        # The "Tạo đối tượng" button only appears while editing; the panel list follows the project.
+        self.create_features_act.setVisible(layer is not None)
+        self.create_features_panel.refresh(layer)
+
+    def _create_features_panel_visibility(self, visible: bool):
+        self.create_features_act.blockSignals(True)
+        self.create_features_act.setChecked(visible)
+        self.create_features_act.blockSignals(False)
+
+    def start_creating(self, layer: QgsVectorLayer):
+        """Create Features: make `layer` the edited layer and activate the tool for its geometry type."""
+        title = "Tạo đối tượng"
+        act = self.add_feature_acts.get(layer.geometryType())
+        if act is None:
+            self._push(title, "Lớp không có hình học (điểm/đường/vùng)", Qgis.MessageLevel.Warning)
+            return
+        current = self.vector_layer_editing()
+        if current is not None and current.id() != layer.id():
+            # Only one layer is edited at a time: close the current session first (asks about changes).
+            self._stop_editing()
+            if current.isEditable():
+                self.sync_editing_state()
+                return  # Cancel: keep editing the current layer
+        if not layer.isEditable() and not layer.startEditing():
+            self._push(title, f"Không thể mở chỉnh sửa lớp {layer.name()}", Qgis.MessageLevel.Critical)
+            return
+        self.layer_tree_view.setCurrentLayer(layer)
+        self.add_feature(act, layer.geometryType())
+        self.sync_editing_state()
 
     def _watch_layers(self, layers):
         for layer in layers:
@@ -974,6 +1019,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         )
 
     def _current_layer_changed(self, layer: QgsMapLayer):
+        if self.tool_identify_feature is None:
+            return  # window closed (map tools deleted); the project may still be cleared afterwards
         if isinstance(layer, QgsVectorLayer):
             self.tool_identify_feature.setLayer(layer)
             self.set_brightness_contrast_enabled(False)

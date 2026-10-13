@@ -182,3 +182,74 @@ def test_toggle_unchecks_when_edited_layer_removed(window, qtbot):
     assert act.isChecked()
     QgsProject.instance().removeMapLayer(layer.id())
     qtbot.waitUntil(lambda: not act.isChecked(), timeout=2000)
+
+
+def _layers(window):
+    from qgis.core import QgsVectorLayer
+
+    made = {}
+    for name, geom in (("roads", "LineString"), ("wells", "Point"), ("lakes", "Polygon")):
+        layer = QgsVectorLayer(f"{geom}?crs=EPSG:4326", name, "memory")
+        window.main_controller.vector_model.add_vector_layer(layer)
+        made[name] = layer
+    return made
+
+
+def test_create_features_button_only_while_editing(window):
+    layers = _layers(window)
+    panel = window.create_features_panel
+    assert not window.create_features_act.isVisible()
+    window.layer_tree_view.setCurrentLayer(layers["roads"])
+    window.toggle_editing_act.trigger()
+    assert window.create_features_act.isVisible()
+    window.create_features_act.trigger()
+    assert panel.isVisibleTo(window)
+    names = [panel.layer_list.item(i).text() for i in range(panel.layer_list.count())]
+    assert names == ["lakes", "roads (đang sửa)", "wells"]
+    panel.filter_edit.setText("wel")
+    assert [panel.layer_list.item(i).isHidden() for i in range(3)] == [True, True, False]
+    window.toggle_editing_act.trigger()  # stop editing
+    assert not window.create_features_act.isVisible()
+
+
+@pytest.mark.parametrize("name, tool_attr", [
+    ("wells", "tool_add_point_feature"), ("roads", "tool_add_line_feature"), ("lakes", "tool_add_polygon_feature"),
+])
+def test_choose_layer_starts_matching_tool(window, name, tool_attr):
+    layers = _layers(window)
+    window.create_features_panel.layer_chosen.emit(layers[name])
+    assert layers[name].isEditable()
+    assert window.map_canvas.mapTool() is getattr(window, tool_attr)
+    assert window.map_canvas.currentLayer() is layers[name]
+    assert window.toggle_editing_act.isChecked()
+
+
+@pytest.mark.parametrize("answer, switched", [("Yes", True), ("No", True), ("Cancel", False)])
+def test_choose_other_layer_switches_edit_session(window, monkeypatch, answer, switched):
+    from qgis.core import QgsFeature, QgsGeometry, QgsPointXY
+    from qgis.PyQt.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: getattr(QMessageBox.StandardButton, answer))
+    layers = _layers(window)
+    window.start_creating(layers["wells"])
+    f = QgsFeature(layers["wells"].fields())
+    f.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(1, 1)))
+    layers["wells"].addFeature(f)
+
+    window.start_creating(layers["roads"])
+    assert layers["roads"].isEditable() is switched
+    assert layers["wells"].isEditable() is (not switched)
+    assert layers["wells"].dataProvider().featureCount() == (1 if answer == "Yes" else 0)
+    expected_tool = window.tool_add_line_feature if switched else window.tool_add_point_feature
+    assert window.map_canvas.mapTool() is expected_tool
+
+
+def test_create_features_list_vietnamese_order(window):
+    from qgis.core import QgsVectorLayer
+
+    for name in ("Hồ chứa", "Đường giao thông", "Giếng khoan", "Data", "bản đồ"):
+        window.main_controller.vector_model.add_vector_layer(QgsVectorLayer("Point?crs=EPSG:4326", name, "memory"))
+    panel = window.create_features_panel
+    panel.refresh()
+    names = [panel.layer_list.item(i).text() for i in range(panel.layer_list.count())]
+    assert names == ["bản đồ", "Data", "Đường giao thông", "Giếng khoan", "Hồ chứa"]
