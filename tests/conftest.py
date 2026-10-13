@@ -72,3 +72,64 @@ def sample_raster(tmp_path):
 
 def action_texts(menu) -> list[str]:
     return ["-" if a.isSeparator() else a.text() for a in menu.actions()]
+
+
+# ------------------------------------------------------------------ PostGIS (Docker)
+POSTGIS_IMAGE = "postgis/postgis:16-3.4"
+TEST_DB_PASSWORD = "vgeoint_test"
+
+
+def _docker(*args, check=True, timeout=120):
+    import subprocess
+
+    return subprocess.run(["docker", *args], capture_output=True, text=True, check=check, timeout=timeout)
+
+
+def _free_port() -> int:
+    import socket
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+@pytest.fixture(scope="session")
+def postgis_server():
+    """A throwaway PostGIS container; yields (host, port, password). Skips when Docker is unavailable."""
+    import shutil
+    import time
+
+    if shutil.which("docker") is None or _docker("info", check=False, timeout=30).returncode != 0:
+        pytest.skip("Docker is not running")
+    from vgeoint.common.paths import SQL_DIR
+
+    port = _free_port()
+    container = _docker(
+        "run", "-d", "--rm",
+        "-p", f"127.0.0.1:{port}:5432",
+        "-e", f"POSTGRES_PASSWORD={TEST_DB_PASSWORD}",
+        "-v", f"{SQL_DIR}:/sql:ro",
+        POSTGIS_IMAGE,
+        timeout=600,
+    ).stdout.strip()
+    try:
+        deadline = time.time() + 120
+        # The image restarts postgres once after initdb; wait for a real query to succeed.
+        while _docker("exec", container, "psql", "-U", "postgres", "-c", "select 1", check=False).returncode != 0:
+            if time.time() > deadline:
+                raise RuntimeError("PostGIS container did not start")
+            time.sleep(1)
+        time.sleep(2)
+        while _docker("exec", container, "psql", "-U", "postgres", "-c", "select 1", check=False).returncode != 0:
+            time.sleep(1)
+        yield container, "127.0.0.1", port, TEST_DB_PASSWORD
+    finally:
+        _docker("rm", "-f", container, check=False)
+
+
+def create_database(container: str, name: str, *sql_files: str):
+    """Create a database in the test container and run SQL files from sql/ (e.g. "catalog/command.sql")."""
+    _docker("exec", container, "psql", "-U", "postgres", "-c", f'drop database if exists "{name}"')
+    _docker("exec", container, "psql", "-U", "postgres", "-c", f'create database "{name}"')
+    for f in sql_files:
+        _docker("exec", container, "psql", "-v", "ON_ERROR_STOP=1", "-q", "-U", "postgres", "-d", name, "-f", f"/sql/{f}", timeout=300)

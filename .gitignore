@@ -7,3 +7,4 @@ logs/
 output/
 .env
 resources/*.rcc
+data/

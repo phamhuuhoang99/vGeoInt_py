@@ -6,7 +6,6 @@ from vgeoint.common.paths import UI_DIR
 
 # .ui files whose promoted custom widgets are not ported yet; shrink this set phase by phase.
 PENDING = {
-    "catalog/MainWindow",  # LibraryWidget (phase 5)
     "engine/DatabaseWidget",  # phase 6
     "engine/MainWindow",
     "engine/MediaInputWidget",

@@ -33,3 +33,27 @@ def create_app(app_name: str, gui: bool = True) -> QgsApplication:
     register_resources()
     QgsApplication.initQgis()
     return app
+
+
+def install_file_log(app_name: str):
+    """Write Qt and Python log messages to logs/<app>_log.txt (port of the C++ messageHandler)."""
+    import logging
+
+    from qgis.PyQt.QtCore import QtMsgType, qInstallMessageHandler
+
+    from vgeoint.common.paths import LOGS_DIR
+
+    LOGS_DIR.mkdir(exist_ok=True)
+    handler = logging.FileHandler(LOGS_DIR / f"{app_name}_log.txt", mode="w", encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)-8s %(message)s", "%d-%m-%Y %H:%M:%S"))
+    logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
+
+    qt_levels = {
+        QtMsgType.QtDebugMsg: logging.DEBUG,
+        QtMsgType.QtInfoMsg: logging.INFO,
+        QtMsgType.QtWarningMsg: logging.WARNING,
+        QtMsgType.QtCriticalMsg: logging.ERROR,
+        QtMsgType.QtFatalMsg: logging.CRITICAL,
+    }
+    qt_log = logging.getLogger("qt")
+    qInstallMessageHandler(lambda msg_type, _ctx, msg: qt_log.log(qt_levels.get(msg_type, logging.INFO), msg))

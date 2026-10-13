@@ -161,7 +161,7 @@ begin
 	execute 'create or replace view searcharea as '
 			'select geodata.id, filename, datetime, extent, coordinatesystem, library.name, geom '
 			'from geodata, library '
-			'where library.id = idlib and idlib = ' ||$5||
+			'where library.id = idlib and idlib = ' ||$5|| ' '
 			'and ' ||$6|| '(ST_MakeEnvelope(' ||$1||',' ||$2||',' ||$3||',' ||$4||', 4326), geom)';
 end
 $$ language plpgsql;
@@ -174,7 +174,7 @@ begin
 			'select geodata.id, filename, datetime, extent, ' ||
 			'coordinatesystem, geodata.geom, library.name ' ||
 			'from geodata, countryshp, library ' ||
-			'where countryshp.name=''' ||$1|| ''' and idlib = library.id ' ||
+			'where countryshp.name=' || quote_literal($1) || ' and idlib = library.id ' ||
 			'and ' ||$2|| '(countryshp.geom, geodata.geom)';
 end
 $$ language plpgsql;
@@ -186,7 +186,7 @@ begin
 			'select geodata.id, filename, datetime, extent, ' ||
 			'coordinatesystem, geodata.geom, library.name ' ||
 			'from geodata, regionshp, library ' ||
-			'where region=''' ||$1|| ''' and idlib = library.id ' ||
+			'where region=' || quote_literal($1) || ' and idlib = library.id ' ||
 			'and ' ||$2|| '(regionshp.geom, geodata.geom)';
 end
 $$ language plpgsql;

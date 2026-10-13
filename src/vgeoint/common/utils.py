@@ -22,6 +22,11 @@ def settings() -> QgsSettings:
     return QgsSettings(*SETTINGS_SCOPE)
 
 
+def app_settings(app_name: str) -> QgsSettings:
+    """Settings of a sibling app (vGeoCatalog, vGeoEngine) under the same organization."""
+    return QgsSettings(SETTINGS_SCOPE[0], app_name)
+
+
 def message_timeout() -> int:
     return int(settings().value("MessageTimeout", 4))
 

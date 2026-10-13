@@ -12,6 +12,9 @@ SQL_DIR = ROOT / "sql"
 SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "ai" / "scripts"
 # Model weights are large and not in git; override with VGEOINT_MODELS_DIR.
 MODELS_DIR = Path(os.environ.get("VGEOINT_MODELS_DIR", ROOT / "models"))
+# Background maps of vGeoCatalog (Data.ras is ~100 MB, not in git); override with VGEOINT_CATALOG_DATA.
+CATALOG_DATA_DIR = Path(os.environ.get("VGEOINT_CATALOG_DATA", ROOT / "data" / "catalog"))
+LOGS_DIR = ROOT / "logs"
 
 
 def ui_file(app: str, name: str) -> Path:
