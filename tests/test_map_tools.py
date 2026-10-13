@@ -1,5 +1,6 @@
 """Phase 2: measure, add feature, annotations, PDF export."""
 
+import pytest
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsFeature,
@@ -132,3 +133,44 @@ def test_map_save_dialog_settings(window):
     dlg.apply_map_settings(ms)
     assert ms.outputDpi() == dlg.mResolutionSpinBox.value()
     assert dlg.mDrawDecorations.text() == "Xuất các đối tượng đồ họa: Không có"
+
+
+def _mouse(canvas, kind, x, y, button, buttons=None):
+    from qgis.gui import QgsMapMouseEvent
+    from qgis.PyQt.QtCore import QPoint, QPointF, Qt
+    from qgis.PyQt.QtGui import QMouseEvent
+
+    me = QMouseEvent(
+        kind, QPointF(x, y), QPointF(canvas.mapToGlobal(QPoint(x, y))), button,
+        button if buttons is None else buttons, Qt.KeyboardModifier.NoModifier,
+    )
+    return QgsMapMouseEvent(canvas, me)
+
+
+
+
+@pytest.mark.parametrize("tool_attr", ["tool_add_text_annotation", "tool_tag_counting"])
+def test_annotation_tool_full_mouse_sequence(window, monkeypatch, tool_attr):
+    """Press, release, hover, drag, double-click: release used to crash (no QgsMapTool.cursor() in PyQGIS)
+    and the double-click must open the text editor dialog."""
+    from qgis.PyQt.QtCore import QEvent, Qt
+    from qgis.PyQt.QtWidgets import QDialog
+
+    from vgeoint.app.dialogs.text_annotation import TextAnnotationDialog
+
+    opened = []
+    monkeypatch.setattr(QDialog, "exec", lambda self: opened.append(type(self)) or 0)
+    canvas = window.map_canvas
+    tool = getattr(window, tool_attr)
+    canvas.setMapTool(tool)
+    T, B = QEvent.Type, Qt.MouseButton
+
+    tool.canvasPressEvent(_mouse(canvas, T.MouseButtonPress, 300, 200, B.LeftButton))
+    tool.canvasReleaseEvent(_mouse(canvas, T.MouseButtonRelease, 300, 200, B.LeftButton))
+    tool.canvasMoveEvent(_mouse(canvas, T.MouseMove, 305, 205, B.NoButton, B.NoButton))
+    tool.canvasMoveEvent(_mouse(canvas, T.MouseMove, 320, 220, B.NoButton, B.LeftButton))
+    tool.canvasReleaseEvent(_mouse(canvas, T.MouseButtonRelease, 320, 220, B.LeftButton))
+    assert len(canvas.annotationItems()) == 1
+
+    tool.canvasDoubleClickEvent(_mouse(canvas, T.MouseButtonDblClick, 300, 200, B.LeftButton))
+    assert opened == [TextAnnotationDialog]

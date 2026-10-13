@@ -51,7 +51,9 @@ def _annotations():
 class MapToolAnnotation(QgsMapTool):
     def __init__(self, canvas: QgsMapCanvas):
         super().__init__(canvas)
-        self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+        # PyQGIS has no QgsMapTool.cursor() getter: keep our own copy (the C++ used mCursor).
+        self.tool_cursor = QCursor(Qt.CursorShape.ArrowCursor)
+        self.setCursor(self.tool_cursor)
         self.default_size = QSizeF(80, 30)
         self.default_offset = QPointF(-40, -60)
         self.current_move_action = A.NoAction
@@ -164,7 +166,7 @@ class MapToolAnnotation(QgsMapTool):
 
     def canvasReleaseEvent(self, e):
         self.current_move_action = A.NoAction
-        self.canvas().setCursor(self.cursor())
+        self.canvas().setCursor(self.tool_cursor)
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key.Key_T and e.modifiers() == Qt.KeyboardModifier.ControlModifier:

@@ -57,3 +57,37 @@ def install_file_log(app_name: str):
     }
     qt_log = logging.getLogger("qt")
     qInstallMessageHandler(lambda msg_type, _ctx, msg: qt_log.log(qt_levels.get(msg_type, logging.INFO), msg))
+
+
+def install_exception_hook(app_name: str):
+    """Log uncaught Python exceptions and show them instead of letting PyQt6 abort the app.
+
+    PyQt6 terminates the process on an exception raised inside a Qt slot or event handler unless
+    sys.excepthook is replaced; the error then only appears in logs/<app>_log.txt and a message box.
+    """
+    import faulthandler
+    import logging
+    import traceback
+
+    from qgis.PyQt.QtWidgets import QApplication, QMessageBox
+
+    from vgeoint.common.paths import LOGS_DIR
+
+    LOGS_DIR.mkdir(exist_ok=True)
+    # Native crashes (access violations in Qt/QGIS) are written here.
+    crash_log = open(LOGS_DIR / f"{app_name}_crash.txt", "a", encoding="utf-8")  # noqa: SIM115
+    faulthandler.enable(crash_log)
+    log = logging.getLogger("uncaught")
+
+    def hook(exc_type, exc, tb):
+        text = "".join(traceback.format_exception(exc_type, exc, tb))
+        log.error(text)
+        sys.__stderr__ and sys.__stderr__.write(text)
+        if QApplication.instance() is not None:
+            QMessageBox.critical(
+                QApplication.activeWindow(),
+                app_name,
+                f"Đã xảy ra lỗi:\n{exc}\n\nChi tiết được ghi trong {LOGS_DIR / (app_name + '_log.txt')}",
+            )
+
+    sys.excepthook = hook
