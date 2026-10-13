@@ -5,7 +5,15 @@ the add-feature behaviour (attribute dialog + topological points) is ported here
 """
 
 from qgis.core import Qgis, QgsFeature, QgsProject, QgsVectorLayer
-from qgis.gui import QgsAdvancedDigitizingDockWidget, QgsMapCanvas, QgsMapToolCapture, QgsMapToolDigitizeFeature
+from qgis.gui import (
+    QgsAdvancedDigitizingDockWidget,
+    QgsMapCanvas,
+    QgsMapMouseEvent,
+    QgsMapToolCapture,
+    QgsMapToolDigitizeFeature,
+)
+from qgis.PyQt.QtCore import QEvent, QPointF, Qt
+from qgis.PyQt.QtGui import QMouseEvent
 from qgis.PyQt.QtWidgets import QDialog, QGridLayout, QLabel, QLineEdit, QPushButton
 
 from vgeoint.common.utils import message_timeout
@@ -54,6 +62,31 @@ class AddFeatureTool(QgsMapToolDigitizeFeature):
             self.messageEmitted.connect(
                 lambda msg, level=Qgis.MessageLevel.Info: message_bar.pushMessage(msg, level, message_timeout())
             )
+        self._swallow_release = False
+
+    # ------------------------------------------------- double-click to finish
+    # Not in the C++ app (right-click only): a double-click also finishes a line/polygon. Qt delivers
+    # press, release (adds the last vertex), double-click (finish), release (must not start a new one).
+    def canvasDoubleClickEvent(self, e):
+        if self.mode() not in (Mode.CaptureLine, Mode.CapturePolygon) or e.button() != Qt.MouseButton.LeftButton:
+            super().canvasDoubleClickEvent(e)
+            return
+        finish = QMouseEvent(
+            QEvent.Type.MouseButtonRelease,
+            QPointF(e.pos()),
+            e.globalPosition(),
+            Qt.MouseButton.RightButton,
+            Qt.MouseButton.RightButton,
+            e.modifiers(),
+        )
+        self._swallow_release = True
+        self.cadCanvasReleaseEvent(QgsMapMouseEvent(self.canvas(), finish))
+
+    def cadCanvasReleaseEvent(self, e):
+        if self._swallow_release and e.button() == Qt.MouseButton.LeftButton:
+            self._swallow_release = False
+            return
+        super().cadCanvasReleaseEvent(e)
 
     def current_layer(self) -> QgsVectorLayer | None:
         layer = self.canvas().currentLayer()

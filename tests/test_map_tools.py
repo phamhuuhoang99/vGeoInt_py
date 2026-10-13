@@ -174,3 +174,62 @@ def test_annotation_tool_full_mouse_sequence(window, monkeypatch, tool_attr):
 
     tool.canvasDoubleClickEvent(_mouse(canvas, T.MouseButtonDblClick, 300, 200, B.LeftButton))
     assert opened == [TextAnnotationDialog]
+
+
+def _real_double_click(widget, pos):
+    """What a real double-click delivers: press, release, double-click, release.
+
+    (QTest.mouseDClick in Qt 6 only sends the double-click event.)
+    """
+    from qgis.PyQt.QtCore import QEvent, QPointF, Qt
+    from qgis.PyQt.QtGui import QMouseEvent
+    from qgis.PyQt.QtTest import QTest
+    from qgis.PyQt.QtWidgets import QApplication
+
+    L, none = Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier
+    QTest.mousePress(widget, L, none, pos)
+    QTest.mouseRelease(widget, L, none, pos)
+    dbl = QMouseEvent(QEvent.Type.MouseButtonDblClick, QPointF(pos), QPointF(widget.mapToGlobal(pos)), L, L, none)
+    QApplication.sendEvent(widget, dbl)
+    QTest.mouseRelease(widget, L, none, pos)
+
+
+@pytest.mark.parametrize("geom, pts, wkb", [
+    ("Line", [(300, 300), (500, 250)], "LineString"),
+    ("Polygon", [(300, 300), (500, 250), (600, 400)], "Polygon"),
+])
+def test_double_click_finishes_line_and_polygon(window, monkeypatch, geom, pts, wkb):
+    """Double-click finishes the shape (right-click still works); the trailing release is swallowed."""
+    from qgis.core import Qgis, QgsRectangle
+    from qgis.PyQt.QtCore import QPoint, Qt
+    from qgis.PyQt.QtTest import QTest
+    from qgis.PyQt.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: QMessageBox.StandardButton.Yes)
+    canvas = window.map_canvas
+    canvas.setExtent(QgsRectangle(100, 10, 110, 20))
+    act = [a for a in window.menu_bar_.vector_menu.actions() if a.text() == f"Thêm đối tượng {'đường' if geom == 'Line' else 'vùng'}"][0]
+    act.trigger()  # answers "Yes" -> creates an editable memory layer
+    layer = canvas.currentLayer()
+    tool = canvas.mapTool()
+    vp = canvas.viewport()
+    L = Qt.MouseButton.LeftButton
+    for x, y in pts:
+        QTest.mouseClick(vp, L, Qt.KeyboardModifier.NoModifier, QPoint(x, y))
+    _real_double_click(vp, QPoint(700, 350))
+
+    feats = list(layer.getFeatures())
+    assert len(feats) == 1
+    geom_obj = feats[0].geometry()
+    assert geom_obj.asWkt().startswith(wkb)
+    vertices = list(geom_obj.vertices())
+    expected = len(pts) + 1 + (1 if geom == "Polygon" else 0)  # polygon ring repeats its first vertex
+    assert len(vertices) == expected
+    assert not tool.isCapturing()  # the release after the double-click did not start a new shape
+
+    # a normal right-click finish still works afterwards
+    for x, y in pts:
+        QTest.mouseClick(vp, L, Qt.KeyboardModifier.NoModifier, QPoint(x + 10, y + 10))
+    QTest.mouseClick(vp, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, QPoint(x + 10, y + 10))
+    assert layer.featureCount() == (2 if geom == "Line" or len(pts) >= 3 else 1)
+    assert layer.geometryType() == (Qgis.GeometryType.Line if geom == "Line" else Qgis.GeometryType.Polygon)
