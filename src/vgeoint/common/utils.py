@@ -69,9 +69,9 @@ def format_coordinate_for_project(
 
     geo_str = QgsCoordinateFormatter.format(
         geo,
-        QgsCoordinateFormatter.Format.DegreesMinutesSeconds,
+        QgsCoordinateFormatter.Format.FormatDegreesMinutesSeconds,
         3,
-        QgsCoordinateFormatter.FormatFlag.DegreesPadMinutesSeconds
-        | QgsCoordinateFormatter.FormatFlag.DegreesUseStringSuffix,
+        QgsCoordinateFormatter.FormatFlag.FlagDegreesPadMinutesSeconds
+        | QgsCoordinateFormatter.FormatFlag.FlagDegreesUseStringSuffix,
     )
     return coord_str, geo_str

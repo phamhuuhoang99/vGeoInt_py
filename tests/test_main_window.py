@@ -77,3 +77,35 @@ def test_unported_dialog_shows_message(window):
     # A dialog module that does not exist (yet) shows a notice instead of failing.
     window.main_controller._std_dialog("does_not_exist", "MissingDialog")
     assert window.message_bar.currentItem() is not None
+
+
+def test_coordinate_widget_shows_dms(window):
+    """xyCoordinates fires on every mouse move; the DMS formatting used Qt5-era enum names."""
+    from qgis.core import QgsPointXY, QgsProject, QgsVectorLayer
+
+    QgsProject.instance().addMapLayer(QgsVectorLayer("Point?crs=EPSG:4326", "pts", "memory"))
+    window.layer_tree_map_canvas_bridge.setCanvasLayers()
+    window.map_canvas.xyCoordinates.emit(QgsPointXY(105.85, 21.03))
+    assert "105" in window.coordinate_widget.coord_ledr.text()
+    assert "21°" in window.coordinate_widget.geo_ledr.text()
+
+
+def test_layer_context_menu(window):
+    from qgis.core import QgsVectorLayer
+
+    vl = QgsVectorLayer("Point?crs=EPSG:4326", "pts", "memory")
+    window.main_controller.vector_model.add_vector_layer(vl)
+    menu = window.layer_panel_menu.createContextMenu()
+    texts = [a.text() for a in menu.actions()]
+    assert "Đi tới layer này" in texts and "Hiển thị nhãn..." in texts and "Xem siêu dữ liệu" in texts
+
+
+def test_no_missing_qt_qgis_attributes():
+    """tools/check_attributes.py: no Qt5/QGIS3-era enum or class attribute names left in src/."""
+    import subprocess
+    import sys
+
+    from vgeoint.common.paths import ROOT
+
+    out = subprocess.run([sys.executable, str(ROOT / "tools" / "check_attributes.py")], capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout

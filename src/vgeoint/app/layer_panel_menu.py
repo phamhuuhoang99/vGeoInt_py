@@ -51,7 +51,8 @@ class LayerPanelMenu(QgsLayerTreeViewMenuProvider):
             add_group.setText("Thêm nhóm con")
             menu.addAction(add_group)
         elif QgsLayerTree.isLayer(node):
-            layer = QgsLayerTree.toLayer(node).layer()
+            # PyQGIS already returns the node as QgsLayerTreeLayer (no QgsLayerTree.toLayer binding).
+            layer = node.layer()
 
             zoom_to_layer = QAction("Đi tới layer này", menu)
             zoom_to_layer.triggered.connect(lambda: self._zoom_to_layer(layer))

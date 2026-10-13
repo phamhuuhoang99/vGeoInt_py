@@ -78,11 +78,18 @@ def install_exception_hook(app_name: str):
     crash_log = open(LOGS_DIR / f"{app_name}_crash.txt", "a", encoding="utf-8")  # noqa: SIM115
     faulthandler.enable(crash_log)
     log = logging.getLogger("uncaught")
+    shown: set[tuple] = set()
 
     def hook(exc_type, exc, tb):
         text = "".join(traceback.format_exception(exc_type, exc, tb))
         log.error(text)
         sys.__stderr__ and sys.__stderr__.write(text)
+        # The same error repeats on every mouse move / repaint: show each one only once.
+        where = traceback.extract_tb(tb)[-1] if tb else None
+        key = (exc_type, str(exc), where.filename if where else "", where.lineno if where else 0)
+        if key in shown:
+            return
+        shown.add(key)
         if QApplication.instance() is not None:
             QMessageBox.critical(
                 QApplication.activeWindow(),
