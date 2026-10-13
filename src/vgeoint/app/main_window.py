@@ -126,8 +126,6 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         self.project = QgsProject.instance()
 
         self.plugins: dict[str, list] = {}  # name -> [action, plugin]
-        self.feature_selection_layer: QgsVectorLayer | None = None
-        self.feature_selection_id = -1
         self.rubber_band: QgsRubberBand | None = None
 
         self.main_controller = MainController(self)
@@ -579,16 +577,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         start_editing_act.triggered.connect(self._toggle_editing)
         save_editing_act.triggered.connect(self._save_editing)
         self.sync_editing_state()
-
-        identify_act = QAction(get_icon("Identify.svg"), "Chọn đối tượng", tb)
-        tb.addAction(identify_act)
-        vector_menu.addAction(identify_act)
-        identify_act.triggered.connect(lambda: self.map_canvas.setMapTool(self.tool_identify_feature))
-
-        remove_fea_act = QAction(get_icon("RemoveFeature.svg"), "Xóa đối tượng", tb)
-        tb.addAction(remove_fea_act)
-        vector_menu.addAction(remove_fea_act)
-        remove_fea_act.triggered.connect(self._remove_selected_feature)
+        # The C++ "Chọn đối tượng" / "Xóa đối tượng" buttons were removed: selecting and deleting
+        # features is done with the Chọn / Xóa tools of the "Tạo đối tượng" panel.
 
     def _push(self, title: str, text: str, level: Qgis.MessageLevel):
         self.message_bar.pushMessage(title, text, level, message_timeout())
@@ -827,19 +817,6 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         layer.endEditCommand()
         layer.triggerRepaint()
         self._push(title, f"Đã xóa {len(ids)} đối tượng", Qgis.MessageLevel.Info)
-
-    def _remove_selected_feature(self):
-        # Toolbar "Xóa đối tượng": delete the selection made with the panel's select tool if any,
-        # otherwise the C++ behaviour (the feature highlighted by "Chọn đối tượng").
-        edited = self.vector_layer_editing()
-        if edited is not None and edited.selectedFeatureCount():
-            self.delete_selected_features()
-            return
-        layer = self.feature_selection_layer
-        if layer is not None and layer.isEditable() and self.feature_selection_id >= 0:
-            layer.deleteFeature(self.feature_selection_id)
-            self.rubber_band.reset(Qgis.GeometryType.Polygon)
-            layer.triggerRepaint()
 
     def create_raster_tool_bar(self):
         tb = QToolBar("Raster", self)
@@ -1133,8 +1110,6 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         vl = self.active_layer()
         vl = vl if isinstance(vl, QgsVectorLayer) else None
         self.rubber_band.setToGeometry(f.geometry(), vl)
-        self.feature_selection_layer = vl
-        self.feature_selection_id = f.id()
 
     def _show_plugin(self, plugin):
         plugin.set_map_canvas(self.map_canvas)

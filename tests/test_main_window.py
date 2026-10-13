@@ -289,3 +289,10 @@ def test_arcgis_workflow_add_layer_edit_create_draw(window):
     window.tool_add_point_feature.digitized(f)
     assert layer.featureCount() == 1
 
+
+
+def test_vector_toolbar_without_identify_and_delete_buttons(window):
+    """Selecting / deleting is done from the "Tạo đối tượng" panel; the C++ buttons were removed."""
+    tb = window.findChild(QToolBar, "VectorToolBar")
+    texts = [a.text() for a in tb.actions()] + [a.text() for a in window.menu_bar_.vector_menu.actions()]
+    assert "Chọn đối tượng" not in texts and "Xóa đối tượng" not in texts
