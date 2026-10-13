@@ -10,6 +10,7 @@ from qgis.PyQt.QtCore import QCoreApplication, QFileInfo, pyqtSignal
 from qgis.PyQt.QtGui import QImage, QPixmap
 from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox
 
+from vgeoint.app.dialogs._feedback import notify_failure, notify_success
 from vgeoint.app.plugins import RASTER
 from vgeoint.common.ui import load_ui_class
 from vgeoint.common.utils import get_icon, settings
@@ -253,22 +254,26 @@ class ImageFilterDialog(QDialog, Ui_ImageFilterDialog):
             self.dstImageLbl.setPixmap(gray_pixmap(result))
 
     def _ok(self):
-        self.apply()
-        self.close()
+        # The C++ closed the dialog whatever happened, hiding the result; keep it open on failure.
+        if self.apply():
+            self.close()
 
-    def apply(self):
+    def _fail(self, text: str) -> bool:
+        log.critical(text)
+        notify_failure(self.vn_name(), text)
+        return False
+
+    def apply(self) -> bool:
         layer = self.rasterLayerCbx.currentData()
         if layer is None or not layer.isValid():
-            return
+            return self._fail("Chưa chọn raster layer")
         band = int(self.bandCbx.currentData())
         if layer.dataProvider().dataTypeSize(band) != 1:
-            log.critical("DataType isn't supported")
-            return
+            return self._fail("Chỉ hỗ trợ ảnh 8 bit")
         output = self.outputFileLedr.text()
         if not output:
             # C++: QgsRasterFileWriter("") -> null provider -> crash
-            log.critical("Output file is empty")
-            return
+            return self._fail("Chưa chọn ảnh kết quả")
 
         src = read_band_u8(layer, band)
         self._src_image = src
@@ -276,8 +281,9 @@ class ImageFilterDialog(QDialog, Ui_ImageFilterDialog):
         # C++: kết quả rỗng (Canny sai ngưỡng) -> ghi lại kênh gốc
         out = src if result is None else result
         if not write_geotiff_u8(output, [out], layer.extent(), layer.crs()):
-            log.critical("Cannot create %s", output)
-            return
+            return self._fail(f"Không thể ghi {output}")
 
         self._output_files = [output]
+        notify_success(self.vn_name(), "Lọc ảnh đã hoàn thành", output)
         self.complete.emit()
+        return True

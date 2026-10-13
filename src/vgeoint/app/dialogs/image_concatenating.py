@@ -6,6 +6,7 @@ from qgis.core import QgsRasterFileWriter, QgsRasterLayer
 from qgis.PyQt.QtCore import QFileInfo, Qt, pyqtSignal
 from qgis.PyQt.QtWidgets import QApplication, QDialog, QFileDialog, QListWidgetItem
 
+from vgeoint.app.dialogs._feedback import notify_failure, notify_success
 from vgeoint.app.dialogs.color_composite import fill_raster_layer_combo
 from vgeoint.app.dialogs.image_split import green, red
 from vgeoint.common.ui import load_ui_class
@@ -59,8 +60,9 @@ class ImageConcatenatingDialog(QDialog, Ui_ImageConcatenatingDialog):
         self.raster_layers = fill_raster_layer_combo(self.rasterLayerCbx, self.map_canvas, self.layer_tree_view)
 
     def _ok(self):
-        self.apply()
-        self.close()
+        # The C++ closed the dialog whatever happened, hiding the result; keep it open on failure.
+        if self.apply():
+            self.close()
 
     def _add(self):
         raster_layer = self.rasterLayerCbx.currentData()
@@ -100,36 +102,36 @@ class ImageConcatenatingDialog(QDialog, Ui_ImageConcatenatingDialog):
     def _selected_layers(self) -> list[QgsRasterLayer]:
         return [self.raster_layers[int(self.bandLswg.item(i).data(USER_ROLE))] for i in range(self.bandLswg.count())]
 
-    def apply(self):
-        if self.bandLswg.count() == 0:
-            log.critical("Concatenate images failed")
-            self.noticeLbl.setText(red("Chưa có ảnh nào được chọn"))
-            return
+    def _fail(self, text: str) -> bool:
+        log.critical("Concatenate images failed: %s", text)
+        self.noticeLbl.setText(red(text))
+        notify_failure(self.vn_name(), text)
+        QApplication.beep()
+        return False
 
-        if not self.outputFileNameLedr.text().strip():
-            log.critical("Concatenate images failed")
-            self.noticeLbl.setText(red("Chưa đặt ảnh kết quả"))
-            return
+    def apply(self) -> bool:
+        if self.bandLswg.count() == 0:
+            return self._fail("Chưa có ảnh nào được chọn")
+        output = self.outputFileNameLedr.text().strip()
+        if not output:
+            return self._fail("Chưa đặt ảnh kết quả")
 
         raster_layers = self._selected_layers()
         extent = raster_layers[0].extent()
         crs = raster_layers[0].crs()
-        same = all(lyr.extent() == extent and lyr.crs() == crs for lyr in raster_layers[1:])
+        if not all(lyr.extent() == extent and lyr.crs() == crs for lyr in raster_layers[1:]):
+            return self._fail("Các ảnh không cùng khu vực hoặc hệ tọa độ")
+        if not self.concatenate_images(raster_layers, output):
+            return self._fail("Gộp kênh ảnh thất bại")
 
-        if same:
-            if self.concatenate_images(raster_layers, self.outputFileNameLedr.text()):
-                log.info("Concatenate images succeeded")
-                self.noticeLbl.setText(green("Gộp kênh ảnh đã hoàn thành"))
-                # Lưu đường dẫn kết quả và thông báo hoàn thành
-                self.output_files = [self.outputFileNameLedr.text()]
-                self.complete.emit()
-            else:
-                log.critical("Concatenate images failed")
-                self.noticeLbl.setText(red("Gộp kênh ảnh thất bại"))
-        else:
-            log.critical("Concatenate images failed")
-            self.noticeLbl.setText(red("Các ảnh không cùng khu vực hoặc hệ tọa độ"))
+        log.info("Concatenate images succeeded")
+        self.noticeLbl.setText(green("Gộp kênh ảnh đã hoàn thành"))
+        # Lưu đường dẫn kết quả và thông báo hoàn thành
+        self.output_files = [output]
+        notify_success(self.vn_name(), f"Đã gộp {len(raster_layers)} ảnh thành", output)
+        self.complete.emit()
         QApplication.beep()
+        return True
 
     def concatenate_images(self, raster_layers: list[QgsRasterLayer], output: str) -> bool:
         self.progressBar.show()

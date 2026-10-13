@@ -6,6 +6,7 @@ from qgis.core import QgsRasterFileWriter, QgsRasterLayer
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from qgis.PyQt.QtWidgets import QApplication, QDialog, QFileDialog, QListWidgetItem
 
+from vgeoint.app.dialogs._feedback import notify_failure, notify_success
 from vgeoint.app.dialogs.color_composite import fill_raster_layer_combo
 from vgeoint.common.ui import load_ui_class
 from vgeoint.common.utils import get_icon, settings
@@ -64,8 +65,9 @@ class ImageSplitDialog(QDialog, Ui_ImageSplitDialog):
         self.raster_layers = fill_raster_layer_combo(self.rasterLayerCbx, self.map_canvas, self.layer_tree_view)
 
     def _ok(self):
-        self.apply()
-        self.close()
+        # The C++ closed the dialog whatever happened, hiding the result; keep it open on failure.
+        if self.apply():
+            self.close()
 
     def _select_folder(self):
         s = settings()
@@ -102,18 +104,29 @@ class ImageSplitDialog(QDialog, Ui_ImageSplitDialog):
             )
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
 
-    def apply(self):
-        raster_layer = self.rasterLayerCbx.currentData()
-        if raster_layer and raster_layer.isValid():
-            folder = self.outputFolderLedr.text()
-            file_names = [f"{folder}/{self.bandLswg.item(i).text()}.tif" for i in range(self.bandLswg.count())]
-            if self.split_image(raster_layer, file_names):
-                self.noticeLbl.setText(green("Tách kênh ảnh đã hoàn thành"))
-                self.output_files = file_names
-                self.complete.emit()
-            else:
-                self.noticeLbl.setText(red("Không thể tách kênh ảnh"))
+    def _fail(self, text: str) -> bool:
+        self.noticeLbl.setText(red(text))
+        notify_failure(self.vn_name(), text)
         QApplication.beep()
+        return False
+
+    def apply(self) -> bool:
+        raster_layer = self.rasterLayerCbx.currentData()
+        if not (raster_layer and raster_layer.isValid()):
+            return self._fail("Chưa chọn raster layer")
+        folder = self.outputFolderLedr.text().strip()
+        if not folder:
+            # The C++ then wrote "/<band>.tif" at the drive root.
+            return self._fail("Chưa chọn thư mục lưu kết quả")
+        file_names = [f"{folder}/{self.bandLswg.item(i).text()}.tif" for i in range(self.bandLswg.count())]
+        if not self.split_image(raster_layer, file_names):
+            return self._fail("Không thể tách kênh ảnh")
+        self.noticeLbl.setText(green("Tách kênh ảnh đã hoàn thành"))
+        self.output_files = file_names
+        notify_success(self.vn_name(), f"Đã tách {len(file_names)} kênh ảnh vào thư mục", folder)
+        self.complete.emit()
+        QApplication.beep()
+        return True
 
     def split_image(self, raster_layer: QgsRasterLayer, file_names: list[str]) -> bool:
         if not raster_layer or not raster_layer.isValid():

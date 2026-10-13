@@ -5,6 +5,7 @@ from qgis.core import QgsFeedback, QgsProject, QgsRasterLayer, QgsRectangle
 from qgis.PyQt.QtCore import QFileInfo, pyqtSignal
 from qgis.PyQt.QtWidgets import QApplication, QDialog, QFileDialog
 
+from vgeoint.app.dialogs._feedback import notify_success
 from vgeoint.common.ui import load_ui_class
 from vgeoint.common.utils import get_icon, settings
 
@@ -190,6 +191,7 @@ class BandMathDialog(QDialog, Ui_BandMathDialog):
         if result == QgsRasterCalculator.Result.Success:
             self.output_files = [output]
             # The "auto add" checkbox is handled by MainController via the `complete` signal.
+            notify_success(self.vn_name(), "Tính toán trên ảnh đã hoàn thành", output)
             QApplication.beep()
             self.complete.emit()
             self.close()

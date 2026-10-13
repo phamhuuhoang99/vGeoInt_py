@@ -15,6 +15,7 @@ from vgeoint.app.dialogs.image_filter import (
     read_band_u8,
     write_geotiff_u8,
 )
+from vgeoint.app.dialogs._feedback import notify_failure, notify_success
 from vgeoint.app.plugins import RASTER
 from vgeoint.common.ui import load_ui_class
 from vgeoint.common.utils import get_icon, settings
@@ -156,10 +157,12 @@ class ColorSpaceConvertionDialog(QDialog, Ui_ColorSpaceConvertionDialog):
         if result:
             log.info("Convert %s to %s succeeded", from_text, to_text)
             self.noticeLbl.setText(_green("Chuyển đổi thành công"))
+            notify_success(self.vn_name(), f"Chuyển {from_text} sang {to_text} thành công", output)
             # Lưu đường dẫn kết quả và thông báo hoàn thành
             self._output_files = [output]
             self.complete.emit()
         else:
             log.critical("Convert %s to %s failed", from_text, to_text)
             self.noticeLbl.setText(_red("Chuyển đổi thất bại"))
+            notify_failure(self.vn_name(), "Chuyển đổi thất bại")
         QApplication.beep()

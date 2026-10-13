@@ -16,6 +16,7 @@ from qgis.PyQt.QtCore import QFile, QFileInfo, pyqtSignal
 from qgis.PyQt.QtGui import QColor, QPalette
 from qgis.PyQt.QtWidgets import QApplication, QColorDialog, QDialog, QFileDialog
 
+from vgeoint.app.dialogs._feedback import notify_success
 from vgeoint.app.dialogs.band_math import output_grid
 from vgeoint.common.ui import load_ui_class
 from vgeoint.common.utils import get_icon, settings
@@ -221,6 +222,7 @@ class ChangeDetectionDialog(QDialog, Ui_ChangeDetectionDialog):
             return
 
         self.output_files = [output]
+        notify_success(self.vn_name(), "Phát hiện thay đổi đã hoàn thành", output)
         self.complete.emit()
         self.close()
 
