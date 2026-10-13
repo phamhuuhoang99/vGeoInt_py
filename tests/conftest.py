@@ -31,6 +31,13 @@ def window(qgis_app, qtbot, monkeypatch):
     w.resize(1000, 700)
     qtbot.addWidget(w)
     yield w
+    # Tests may patch QMessageBox to answer No/Cancel; make sure the exit confirmation says Yes so
+    # the window really closes and drops its connections to the QgsProject singleton.
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    for layer in QgsProject.instance().mapLayers().values():
+        if getattr(layer, "isEditable", lambda: False)():
+            layer.rollBack()
+    w.close()
     QgsProject.instance().clear()
     MainWindow._instance = None
 
