@@ -32,7 +32,7 @@ from qgis.gui import (
     QgsStatusBar,
 )
 from qgis.PyQt import sip
-from qgis.PyQt.QtCore import QSize, Qt
+from qgis.PyQt.QtCore import QSize, Qt, QTimer
 from qgis.PyQt.QtGui import QAction, QColor, QCursor, QIcon
 from qgis.PyQt.QtWidgets import (
     QDockWidget,
@@ -217,6 +217,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         for signal, slot in (
             (self.project.crsChanged, self.main_controller.update_crs),
             (self.project.annotationManager().annotationAdded, self.annotation_created),
+            (self.project.layersAdded, self._watch_layers),
+            (self.project.layersRemoved, self._layers_removed),
         ):
             try:
                 signal.disconnect(slot)
@@ -520,7 +522,10 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         self.addToolBar(tb)
         vector_menu = self.menu_bar_.vector_menu
 
-        start_editing_act = QAction(get_icon("StartEditing.svg"), "Thêm, sửa, xóa", tb)
+        # Toggle (the C++ button only started editing): pressed while a vector layer is being edited.
+        start_editing_act = QAction(get_icon("StartEditing.svg"), "Bật/tắt chỉnh sửa", tb)
+        start_editing_act.setCheckable(True)
+        self.toggle_editing_act = start_editing_act
         tb.addAction(start_editing_act)
         vector_menu.addSeparator()
         vector_menu.addAction(start_editing_act)
@@ -542,8 +547,9 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             act.triggered.connect(lambda _c=False, a=act, g=geom: self.add_feature(a, g))
             tool.deactivated.connect(lambda a=act: a.setChecked(False))
 
-        start_editing_act.triggered.connect(self._start_editing)
+        start_editing_act.triggered.connect(self._toggle_editing)
         save_editing_act.triggered.connect(self._save_editing)
+        self.sync_editing_state()
 
         identify_act = QAction(get_icon("Identify.svg"), "Chọn đối tượng", tb)
         tb.addAction(identify_act)
@@ -557,6 +563,58 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
 
     def _push(self, title: str, text: str, level: Qgis.MessageLevel):
         self.message_bar.pushMessage(title, text, level, message_timeout())
+
+    def _toggle_editing(self, checked: bool):
+        if checked:
+            self._start_editing()
+        else:
+            self._stop_editing()
+        self.sync_editing_state()
+
+    def _stop_editing(self):
+        """Leave edit mode; ask what to do with unsaved changes (Cancel keeps editing)."""
+        vlayer = self.vector_layer_editing()
+        if vlayer is None:
+            return
+        if not vlayer.isModified():
+            vlayer.rollBack()  # nothing to save: just leave edit mode
+            return
+        title = "Tắt chỉnh sửa"
+        result = QMessageBox.question(
+            self,
+            title,
+            f"Layer \"{vlayer.name()}\" có thay đổi chưa lưu. Bạn có muốn lưu lại các thay đổi không?",
+            Btn.Yes | Btn.No | Btn.Cancel,
+        )
+        if result == Btn.Yes:
+            if vlayer.commitChanges():
+                self._push(title, "Đã lưu thay đổi", Qgis.MessageLevel.Info)
+            else:
+                self._push(title, "Lưu thất bại: " + "; ".join(vlayer.commitErrors()), Qgis.MessageLevel.Critical)
+        elif result == Btn.No:
+            vlayer.rollBack()
+
+    def sync_editing_state(self):
+        """Reflect on the toggle button whether a vector layer is in edit mode, and which one."""
+        act = getattr(self, "toggle_editing_act", None)
+        if act is None:
+            return
+        layer = self.vector_layer_editing()
+        act.blockSignals(True)
+        act.setChecked(layer is not None)
+        act.blockSignals(False)
+        if layer is None:
+            act.setToolTip("Bật chỉnh sửa layer vector đang chọn")
+        else:
+            act.setToolTip(f"Đang chỉnh sửa: {layer.name()} — bấm để tắt chỉnh sửa")
+
+    def _watch_layers(self, layers):
+        for layer in layers:
+            if isinstance(layer, QgsVectorLayer):
+                layer.editingStarted.connect(self.sync_editing_state)
+                layer.editingStopped.connect(self.sync_editing_state)
+                layer.nameChanged.connect(self.sync_editing_state)
+        self.sync_editing_state()
 
     def _start_editing(self):
         title = "Mở chỉnh sửa"
@@ -859,6 +917,15 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         # Kết nối sự thay đổi current layer trên LayerTreeView (Layer Panel)
         self.layer_tree_view.currentLayerChanged.connect(self._current_layer_changed)
 
+        # Keep the edit toggle in sync with layers entering/leaving edit mode or being removed.
+        self.project.layersAdded.connect(self._watch_layers)
+        self.project.layersRemoved.connect(self._layers_removed)
+        self._watch_layers(self.project.mapLayers().values())
+
+    def _layers_removed(self, _ids):
+        # Run after the removal has finished, so the removed layers are gone from the project.
+        QTimer.singleShot(0, self.sync_editing_state)
+
     def _feature_identified(self, f: QgsFeature):
         if self.rubber_band is None:
             s = settings()
@@ -924,7 +991,9 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
 
     # ----------------------------------------------------------- vector edit
     def vector_layer_editing(self) -> QgsVectorLayer | None:
-        for layer in self.map_canvas.layers():
+        # All project layers (the C++ only looked at visible canvas layers, so hiding the edited
+        # layer made it "forget" that a layer was in edit mode).
+        for layer in self.project.mapLayers().values():
             if isinstance(layer, QgsVectorLayer) and layer.isEditable():
                 return layer
         return None
