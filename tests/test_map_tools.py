@@ -208,9 +208,8 @@ def test_double_click_finishes_line_and_polygon(window, monkeypatch, geom, pts, 
     monkeypatch.setattr(QMessageBox, "exec", lambda self: QMessageBox.StandardButton.Yes)
     canvas = window.map_canvas
     canvas.setExtent(QgsRectangle(100, 10, 110, 20))
-    act = [a for a in window.menu_bar_.vector_menu.actions() if a.text() == f"Thêm đối tượng {'đường' if geom == 'Line' else 'vùng'}"][0]
-    act.trigger()  # answers "Yes" -> creates an editable memory layer
-    layer = canvas.currentLayer()
+    layer = window.add_geometry_layer(getattr(Qgis.GeometryType, geom))
+    window.start_creating(layer)  # Create Features -> pick the layer -> drawing tool
     tool = canvas.mapTool()
     vp = canvas.viewport()
     L = Qt.MouseButton.LeftButton

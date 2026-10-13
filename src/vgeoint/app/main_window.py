@@ -549,19 +549,24 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         tb.addAction(save_editing_act)
         vector_menu.addAction(save_editing_act)
 
-        for icon, text, tool, geom in (
-            ("AddPoint.svg", "Thêm đối tượng điểm", self.tool_add_point_feature, Qgis.GeometryType.Point),
-            ("AddLine.svg", "Thêm đối tượng đường", self.tool_add_line_feature, Qgis.GeometryType.Line),
-            ("AddPolygon.svg", "Thêm đối tượng vùng", self.tool_add_polygon_feature, Qgis.GeometryType.Polygon),
+        # ArcGIS-like workflow (differs from the C++ app): these buttons only add a new empty layer of
+        # that geometry type; drawing starts from "Bật/tắt chỉnh sửa" -> "Tạo đối tượng" -> pick layer.
+        self.add_tools = {
+            Qgis.GeometryType.Point: self.tool_add_point_feature,
+            Qgis.GeometryType.Line: self.tool_add_line_feature,
+            Qgis.GeometryType.Polygon: self.tool_add_polygon_feature,
+        }
+        for icon, text, geom in (
+            ("AddPoint.svg", "Thêm đối tượng điểm", Qgis.GeometryType.Point),
+            ("AddLine.svg", "Thêm đối tượng đường", Qgis.GeometryType.Line),
+            ("AddPolygon.svg", "Thêm đối tượng vùng", Qgis.GeometryType.Polygon),
         ):
             act = QAction(get_icon(icon), text, tb)
-            act.setCheckable(True)
+            act.setToolTip(f"{text}: tạo lớp mới (để vẽ: Bật chỉnh sửa → Tạo đối tượng)")
             tb.addAction(act)
             vector_menu.addAction(act)
-            tool.setAction(act)
             self.add_feature_acts[geom] = act
-            act.triggered.connect(lambda _c=False, a=act, g=geom: self.add_feature(a, g))
-            tool.deactivated.connect(lambda a=act: a.setChecked(False))
+            act.triggered.connect(lambda _c=False, g=geom: self.add_geometry_layer(g))
 
         start_editing_act.triggered.connect(self._toggle_editing)
         save_editing_act.triggered.connect(self._save_editing)
@@ -638,8 +643,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
     def start_creating(self, layer: QgsVectorLayer):
         """Create Features: make `layer` the edited layer and activate the tool for its geometry type."""
         title = "Tạo đối tượng"
-        act = self.add_feature_acts.get(layer.geometryType())
-        if act is None:
+        tool = self.add_tools.get(layer.geometryType())
+        if tool is None:
             self._push(title, "Lớp không có hình học (điểm/đường/vùng)", Qgis.MessageLevel.Warning)
             return
         current = self.vector_layer_editing()
@@ -653,7 +658,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             self._push(title, f"Không thể mở chỉnh sửa lớp {layer.name()}", Qgis.MessageLevel.Critical)
             return
         self.layer_tree_view.setCurrentLayer(layer)
-        self.add_feature(act, layer.geometryType())
+        self.map_canvas.setCurrentLayer(layer)
+        self.map_canvas.setMapTool(tool)
         self.sync_editing_state()
 
     def _watch_layers(self, layers):
@@ -1048,66 +1054,35 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
                 return layer
         return None
 
-    def add_feature(self, act: QAction, geometry_type: Qgis.GeometryType):
-        vn_name, name, tool = {
-            Qgis.GeometryType.Point: ("Điểm", "Point", self.tool_add_point_feature),
-            Qgis.GeometryType.Line: ("Đường", "LineString", self.tool_add_line_feature),
-            Qgis.GeometryType.Polygon: ("Vùng", "Polygon", self.tool_add_polygon_feature),
+    def add_geometry_layer(self, geometry_type: Qgis.GeometryType) -> QgsVectorLayer | None:
+        """Add a new empty (temporary) layer of that geometry type ("Thêm đối tượng điểm/đường/vùng").
+
+        Unlike the C++ app it does not start editing or a drawing tool: drawing starts from
+        "Bật/tắt chỉnh sửa" -> "Tạo đối tượng" -> pick the layer (ArcGIS-like).
+        """
+        vn_name, wkb = {
+            Qgis.GeometryType.Point: ("Điểm", "Point"),
+            Qgis.GeometryType.Line: ("Đường", "LineString"),
+            Qgis.GeometryType.Polygon: ("Vùng", "Polygon"),
         }[geometry_type]
+        existing = {layer.name() for layer in self.project.mapLayers().values()}
+        name, n = vn_name, 1
+        while name in existing:
+            n += 1
+            name = f"{vn_name} {n}"
 
-        vlayer = self.vector_layer_editing()
-        if vlayer is not None and vlayer.geometryType() == geometry_type:
-            self.map_canvas.setCurrentLayer(vlayer)
-            self.map_canvas.setMapTool(tool)
-            act.setChecked(True)
-            return
-        if vlayer is not None:
-            self._push(
-                f"Thêm {vn_name}",
-                "Khác kiểu so với vector layer đang sửa. Hãy lưu layer hiện tại và thử lại.",
-                Qgis.MessageLevel.Warning,
-            )
-            act.setChecked(False)
-            return
-
-        # Not in the C++ app: if the selected layer already has the right geometry type, edit it
-        # directly instead of offering to create a new temporary layer.
-        active = self.active_layer()
-        if isinstance(active, QgsVectorLayer) and active.geometryType() == geometry_type:
-            if not active.startEditing():
-                self._push(f"Thêm {vn_name}", f"Không thể mở chỉnh sửa lớp {active.name()}", Qgis.MessageLevel.Critical)
-                act.setChecked(False)
-                return
-            self.map_canvas.setCurrentLayer(active)
-            self.map_canvas.setMapTool(tool)
-            act.setChecked(True)
-            self.sync_editing_state()
-            return
-
-        question = QMessageBox(
-            QMessageBox.Icon.Question,
+        layer = QgsVectorLayer(f"{wkb}?crs={self.project.crs().authid()}&index=yes", name, "memory")
+        if not layer.isValid():
+            self._push(f"Thêm {vn_name}", "Không tạo được lớp mới", Qgis.MessageLevel.Critical)
+            return None
+        self.project.addMapLayer(layer)
+        self.layer_tree_view.setCurrentLayer(layer)
+        self._push(
             f"Thêm {vn_name}",
-            f"Không có vector layer dạng {vn_name} nào đang mở số hóa.\n"
-            "Bạn có muốn tự động tạo một vector layer mới không?",
-            Btn.Yes | Btn.No,
-            self,
+            f"Đã thêm lớp \"{name}\". Để vẽ: Bật chỉnh sửa → Tạo đối tượng → chọn lớp.",
+            Qgis.MessageLevel.Info,
         )
-        question.button(Btn.Yes).setText("Có")
-        question.button(Btn.No).setText("Không")
-        if question.exec() != Btn.Yes:
-            act.setChecked(False)
-            return
-
-        url = f"{name}?crs={self.project.crs().authid()}&index=yes"
-        new_layer = QgsVectorLayer(url, vn_name, "memory")
-        if new_layer.isValid():
-            self.project.addMapLayer(new_layer)
-            new_layer.startEditing()
-            # Select it in the layer panel too, so it is clear which layer is being edited.
-            self.layer_tree_view.setCurrentLayer(new_layer)
-            self.map_canvas.setCurrentLayer(new_layer)
-            self.map_canvas.setMapTool(tool)
-            act.setChecked(True)
+        return layer
 
     def get_raster_layer_argv(self) -> str:
         return "|".join(f"{lyr.name()}|{lyr.source()}" for lyr in self.raster_layers())

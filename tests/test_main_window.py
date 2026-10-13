@@ -163,9 +163,8 @@ def test_toggle_follows_save_button_and_auto_layer(window, monkeypatch):
     monkeypatch.setattr(QMessageBox, "exec", lambda self: QMessageBox.StandardButton.Yes)
     monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
     act = window.toggle_editing_act
-    point_act = [a for a in window.menu_bar_.vector_menu.actions() if a.text() == "Thêm đối tượng điểm"][0]
-
-    window.add_feature(point_act, Qgis.GeometryType.Point)  # auto-creates the "Điểm" memory layer
+    layer = window.add_geometry_layer(Qgis.GeometryType.Point)
+    window.start_creating(layer)  # Create Features -> pick the new "Điểm" layer
     assert act.isChecked() and "Điểm" in act.toolTip()
 
     save_act = [a for a in window.menu_bar_.vector_menu.actions() if a.text() == "Lưu thay đổi"][0]
@@ -256,33 +255,37 @@ def test_create_features_list_vietnamese_order(window):
     assert names == ["bản đồ", "Data", "Đường giao thông", "Giếng khoan", "Hồ chứa"]
 
 
-@pytest.mark.parametrize("geom, geom_type", [("Point", "Point"), ("LineString", "Line"), ("Polygon", "Polygon")])
-def test_add_feature_edits_selected_layer_of_same_type(window, monkeypatch, geom, geom_type):
-    """Selected layer of the matching type: start editing it, no "create a new layer?" question."""
-    from qgis.core import Qgis, QgsVectorLayer
-    from qgis.PyQt.QtWidgets import QMessageBox
+@pytest.mark.parametrize("geom_type, name, wkb", [("Point", "Điểm", 1), ("Line", "Đường", 2), ("Polygon", "Vùng", 3)])
+def test_add_layer_button_only_adds_layer(window, geom_type, name, wkb):
+    """"Thêm đối tượng điểm/đường/vùng" only adds an empty layer: no question, no editing, no tool."""
+    from qgis.core import Qgis, QgsWkbTypes
 
-    asked = []
-    monkeypatch.setattr(QMessageBox, "exec", lambda self: asked.append(self.text()) or QMessageBox.StandardButton.Yes)
-    layer = QgsVectorLayer(f"{geom}?crs=EPSG:4326", "mine", "memory")
-    window.main_controller.vector_model.add_vector_layer(layer)  # becomes the selected layer
-    act = window.add_feature_acts[getattr(Qgis.GeometryType, geom_type)]
-    act.trigger()
-    assert not asked
-    assert layer.isEditable() and window.map_canvas.currentLayer() is layer
-    assert window.toggle_editing_act.isChecked() and act.isChecked()
-    assert len(window.project.mapLayers()) == 1  # no extra temporary layer
+    tool_before = window.map_canvas.mapTool()
+    window.add_feature_acts[getattr(Qgis.GeometryType, geom_type)].trigger()
+    layer = window.layer_tree_view.currentLayer()
+    assert layer.name() == name and layer.featureCount() == 0
+    assert QgsWkbTypes.flatType(layer.wkbType()).value == wkb
+    assert not layer.isEditable() and not window.toggle_editing_act.isChecked()
+    assert window.map_canvas.mapTool() is tool_before
+    # a second one gets a distinct name
+    window.add_feature_acts[getattr(Qgis.GeometryType, geom_type)].trigger()
+    assert window.layer_tree_view.currentLayer().name() == f"{name} 2"
 
 
-def test_add_feature_other_type_creates_selected_temp_layer(window, monkeypatch):
-    """Selected layer of another type: ask, create the temp layer, select and edit it."""
-    from qgis.core import Qgis, QgsVectorLayer
-    from qgis.PyQt.QtWidgets import QMessageBox
+def test_arcgis_workflow_add_layer_edit_create_draw(window):
+    """Add layer -> Bật chỉnh sửa -> Tạo đối tượng -> pick layer -> draw."""
+    from qgis.core import Qgis, QgsFeature, QgsGeometry, QgsPointXY
 
-    monkeypatch.setattr(QMessageBox, "exec", lambda self: QMessageBox.StandardButton.Yes)
-    other = QgsVectorLayer("Polygon?crs=EPSG:4326", "zones", "memory")
-    window.main_controller.vector_model.add_vector_layer(other)
     window.add_feature_acts[Qgis.GeometryType.Point].trigger()
-    new = window.layer_tree_view.currentLayer()
-    assert new.name() == "Điểm" and new.isEditable() and not other.isEditable()
+    layer = window.layer_tree_view.currentLayer()
+    window.toggle_editing_act.trigger()
+    assert layer.isEditable() and window.create_features_act.isEnabled()
+    window.create_features_act.trigger()
+    panel = window.create_features_panel
+    panel.layer_list.itemClicked.emit(panel.item_for(layer))
     assert window.map_canvas.mapTool() is window.tool_add_point_feature
+    f = QgsFeature(layer.fields())
+    f.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(105, 21)))
+    window.tool_add_point_feature.digitized(f)
+    assert layer.featureCount() == 1
+
