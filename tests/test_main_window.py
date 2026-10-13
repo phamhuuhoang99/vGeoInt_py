@@ -195,13 +195,13 @@ def _layers(window):
     return made
 
 
-def test_create_features_button_only_while_editing(window):
+def test_create_features_button_enabled_only_while_editing(window):
     layers = _layers(window)
     panel = window.create_features_panel
-    assert not window.create_features_act.isVisible()
+    assert window.create_features_act.isVisible() and not window.create_features_act.isEnabled()
     window.layer_tree_view.setCurrentLayer(layers["roads"])
     window.toggle_editing_act.trigger()
-    assert window.create_features_act.isVisible()
+    assert window.create_features_act.isEnabled()
     window.create_features_act.trigger()
     assert panel.isVisibleTo(window)
     names = [panel.layer_list.item(i).text() for i in range(panel.layer_list.count())]
@@ -209,7 +209,8 @@ def test_create_features_button_only_while_editing(window):
     panel.filter_edit.setText("wel")
     assert [panel.layer_list.item(i).isHidden() for i in range(3)] == [True, True, False]
     window.toggle_editing_act.trigger()  # stop editing
-    assert not window.create_features_act.isVisible()
+    assert window.create_features_act.isVisible() and not window.create_features_act.isEnabled()
+    assert not panel.isVisibleTo(window) and not window.create_features_act.isChecked()
 
 
 @pytest.mark.parametrize("name, tool_attr", [

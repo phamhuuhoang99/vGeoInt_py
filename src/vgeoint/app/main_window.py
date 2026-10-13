@@ -623,8 +623,11 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             act.setToolTip("Bật chỉnh sửa layer vector đang chọn")
         else:
             act.setToolTip(f"Đang chỉnh sửa: {layer.name()} — bấm để tắt chỉnh sửa")
-        # The "Tạo đối tượng" button only appears while editing; the panel list follows the project.
-        self.create_features_act.setVisible(layer is not None)
+        # "Tạo đối tượng" is always on the toolbar but only enabled while editing; leaving edit mode
+        # closes its panel. The panel list follows the project layers.
+        self.create_features_act.setEnabled(layer is not None)
+        if layer is None and not self.create_features_panel.isHidden():
+            self.create_features_panel.hide()
         self.create_features_panel.refresh(layer)
 
     def _create_features_panel_visibility(self, visible: bool):
