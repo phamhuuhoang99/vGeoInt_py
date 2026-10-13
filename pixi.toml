@@ -1,0 +1,42 @@
+[workspace]
+name = "vgeoint"
+version = "0.1.0"
+description = "vGeoInt — GIS desktop suite (PyQGIS rewrite)"
+channels = ["conda-forge"]
+platforms = ["win-64"]
+
+# ---------------------------------------------------------------- GUI (default)
+[dependencies]
+python = "3.14.*"
+qgis = ">=4.2,<4.3"
+opencv = "*"
+numpy = "*"
+psycopg = "*"
+
+[pypi-dependencies]
+vgeoint = { path = ".", editable = true }
+
+[tasks]
+app = { cmd = "python -m vgeoint.app", depends-on = ["build-resources"] }
+catalog = "python -m vgeoint.catalog"
+engine = "python -m vgeoint.engine"
+build-resources = "python tools/build_resources.py"
+check-env = { cmd = "python tools/check_env.py", depends-on = ["build-resources"] }
+
+# ---------------------------------------------------------------- tests
+[feature.test.dependencies]
+pytest = "*"
+pytest-qt = "*"
+
+[feature.test.tasks]
+test = "pytest -q"
+
+# ---------------------------------------------------------------- AI scripts
+# Separate interpreter: the GUI launches these scripts as subprocesses.
+[feature.ai]
+dependencies = { python = "3.12.*", pytorch = "*", torchvision = "*", scikit-learn = "*", joblib = "*", rasterio = "*", geopandas = "*", shapely = "*", opencv = "*", scipy = "*", earthengine-api = "*" }
+pypi-dependencies = { ultralytics = "*", sahi = "*", segmentation-models-pytorch = "*" }
+
+[environments]
+default = { features = ["test"], solve-group = "gui" }
+ai = { features = ["ai"], no-default-feature = true }

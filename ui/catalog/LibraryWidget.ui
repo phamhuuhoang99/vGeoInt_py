@@ -1,0 +1,469 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>LibraryWidget</class>
+ <widget class="QWidget" name="LibraryWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1383</width>
+    <height>759</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>LibraryWidget</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout_5">
+   <property name="leftMargin">
+    <number>5</number>
+   </property>
+   <property name="topMargin">
+    <number>5</number>
+   </property>
+   <property name="rightMargin">
+    <number>5</number>
+   </property>
+   <property name="bottomMargin">
+    <number>5</number>
+   </property>
+   <property name="spacing">
+    <number>5</number>
+   </property>
+   <item row="0" column="0">
+    <widget class="QSplitter" name="vSplitter">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <widget class="QSplitter" name="hSplitter1">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+      <widget class="QWidget" name="libLayoutWidget">
+       <layout class="QGridLayout" name="gridLayout">
+        <property name="spacing">
+         <number>5</number>
+        </property>
+        <item row="1" column="0" colspan="5">
+         <widget class="QListWidget" name="librariesLwg">
+          <property name="iconSize">
+           <size>
+            <width>48</width>
+            <height>48</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QPushButton" name="scanLibBtn">
+          <property name="toolTip">
+           <string>Quét thư viện hiện tại</string>
+          </property>
+          <property name="text">
+           <string>Quét</string>
+          </property>
+          <property name="icon">
+           <iconset resource="../Resources/myicon/myicon.qrc">
+            <normaloff>:/myicon/Mission.svg</normaloff>:/myicon/Mission.svg</iconset>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QPushButton" name="addLibBtn">
+          <property name="toolTip">
+           <string>Thêm mới thư viện</string>
+          </property>
+          <property name="text">
+           <string>Thêm</string>
+          </property>
+          <property name="icon">
+           <iconset resource="../Resources/myicon/myicon.qrc">
+            <normaloff>:/myicon/Add.svg</normaloff>:/myicon/Add.svg</iconset>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="2">
+         <widget class="QPushButton" name="removeLibBtn">
+          <property name="toolTip">
+           <string>Xóa thư viện hiện tại</string>
+          </property>
+          <property name="text">
+           <string>Xóa</string>
+          </property>
+          <property name="icon">
+           <iconset resource="../Resources/myicon/myicon.qrc">
+            <normaloff>:/myicon/Remove.svg</normaloff>:/myicon/Remove.svg</iconset>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="4">
+         <spacer name="libHSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>48</width>
+            <height>26</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="2" column="3">
+         <widget class="QPushButton" name="viewLibBtn">
+          <property name="toolTip">
+           <string>Xem dữ liệu của thư viện hiện tại</string>
+          </property>
+          <property name="text">
+           <string>Xem</string>
+          </property>
+          <property name="icon">
+           <iconset resource="../Resources/myicon/myicon.qrc">
+            <normaloff>:/myicon/TextAnnotation/Show.svg</normaloff>:/myicon/TextAnnotation/Show.svg</iconset>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0" colspan="5">
+         <widget class="QLabel" name="libLabel">
+          <property name="text">
+           <string>Thư viện đã tạo:</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QSplitter" name="hSplitter2">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <widget class="QWidget" name="formatsLayoutWidget">
+        <layout class="QGridLayout" name="formatsLayout">
+         <property name="spacing">
+          <number>5</number>
+         </property>
+         <item row="2" column="1">
+          <widget class="QPushButton" name="selectAllFormatsBtn">
+           <property name="toolTip">
+            <string>Chọn tất cả định dạng</string>
+           </property>
+           <property name="text">
+            <string>Chọn tất cả</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="2">
+          <widget class="QPushButton" name="clearFormatsBtn">
+           <property name="toolTip">
+            <string>Bỏ chọn tất cả định dạng</string>
+           </property>
+           <property name="text">
+            <string>Xóa tất cả</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0" colspan="4">
+          <widget class="QListWidget" name="formatsLwg">
+           <property name="resizeMode">
+            <enum>QListView::Adjust</enum>
+           </property>
+           <property name="spacing">
+            <number>10</number>
+           </property>
+           <property name="viewMode">
+            <enum>QListView::IconMode</enum>
+           </property>
+           <property name="uniformItemSizes">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <spacer name="formatsHSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>48</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="2" column="3">
+          <widget class="QPushButton" name="saveFormatsBtn">
+           <property name="toolTip">
+            <string>Lưu lại trạng thái các định dạng</string>
+           </property>
+           <property name="text">
+            <string>Lưu thay đổi</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/SaveEditing.svg</normaloff>:/myicon/SaveEditing.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0" colspan="3">
+          <widget class="QLabel" name="formatsLabel">
+           <property name="text">
+            <string>Định dạng:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="3">
+          <widget class="QLabel" name="formatsNoticeLbl">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="dirLayoutWidget">
+        <layout class="QGridLayout" name="dirLayout">
+         <property name="spacing">
+          <number>5</number>
+         </property>
+         <item row="2" column="0">
+          <widget class="QPushButton" name="addDirBtn">
+           <property name="toolTip">
+            <string>Thêm mới thư mục giám sát</string>
+           </property>
+           <property name="text">
+            <string>Thêm</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Add.svg</normaloff>:/myicon/Add.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QPushButton" name="removeDirBtn">
+           <property name="toolTip">
+            <string>Xóa thư mục hiện tại</string>
+           </property>
+           <property name="text">
+            <string>Xóa</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Remove.svg</normaloff>:/myicon/Remove.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="4">
+          <widget class="QPushButton" name="selectAllEnabledDirBtn">
+           <property name="toolTip">
+            <string>Chọn tất cả các thư mục</string>
+           </property>
+           <property name="text">
+            <string>Chọn tất cả</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0" colspan="7">
+          <widget class="QListWidget" name="dirLwg">
+           <property name="iconSize">
+            <size>
+             <width>32</width>
+             <height>32</height>
+            </size>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="2">
+          <widget class="QPushButton" name="showDirInExplorerBtn">
+           <property name="toolTip">
+            <string>Đi tới thư mực hiện tại</string>
+           </property>
+           <property name="text">
+            <string>Đi tới</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Explorer.svg</normaloff>:/myicon/Explorer.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="5">
+          <widget class="QPushButton" name="clearEnabledDirBtn">
+           <property name="toolTip">
+            <string>Bỏ chọn tất cả các thư mục</string>
+           </property>
+           <property name="text">
+            <string>Xóa tất cả</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="3">
+          <spacer name="horizontalSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="2" column="6">
+          <widget class="QPushButton" name="saveDirBtn">
+           <property name="toolTip">
+            <string>Lưu lại trạng thái các thư mục</string>
+           </property>
+           <property name="text">
+            <string>Lưu thay đổi</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/SaveEditing.svg</normaloff>:/myicon/SaveEditing.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0" colspan="6">
+          <widget class="QLabel" name="dirLabel">
+           <property name="text">
+            <string>Thư mục giám sát:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="6">
+          <widget class="QLabel" name="dirNoticeLbl">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+     </widget>
+     <widget class="QWidget" name="layoutWidget5">
+      <layout class="QGridLayout" name="geoDataLayout">
+       <property name="spacing">
+        <number>5</number>
+       </property>
+       <item row="1" column="1">
+        <widget class="QPushButton" name="showRecInVGeoIntBtn">
+         <property name="toolTip">
+          <string>Xem trong vGeoInt</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="icon">
+          <iconset resource="../Resources/myicon/myicon.qrc">
+           <normaloff>:/myicon/vGeoInt.svg</normaloff>:/myicon/vGeoInt.svg</iconset>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0" colspan="2">
+        <widget class="QLabel" name="geoDataTableLbl">
+         <property name="text">
+          <string>Dữ liệu đã thu thập:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QPushButton" name="showRecInExplorerBtn">
+         <property name="toolTip">
+          <string>Xem trong Explorer</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="icon">
+          <iconset resource="../Resources/myicon/myicon.qrc">
+           <normaloff>:/myicon/Explorer.svg</normaloff>:/myicon/Explorer.svg</iconset>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <spacer name="geoDataVSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item row="3" column="1">
+        <widget class="QPushButton" name="copyRecContentBtn">
+         <property name="toolTip">
+          <string>Sao chép như văn bản</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="icon">
+          <iconset resource="../Resources/myicon/myicon.qrc">
+           <normaloff>:/myicon/Copy.svg</normaloff>:/myicon/Copy.svg</iconset>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0" rowspan="5">
+        <widget class="QTableView" name="geoDataTbv">
+         <property name="contextMenuPolicy">
+          <enum>Qt::CustomContextMenu</enum>
+         </property>
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QPushButton" name="removeRecNotExistsBtn">
+         <property name="toolTip">
+          <string>Xóa file không tồn tại</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="icon">
+          <iconset resource="../Resources/myicon/myicon.qrc">
+           <normaloff>:/myicon/NotExists.svg</normaloff>:/myicon/NotExists.svg</iconset>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <tabstops>
+  <tabstop>librariesLwg</tabstop>
+  <tabstop>scanLibBtn</tabstop>
+  <tabstop>addLibBtn</tabstop>
+  <tabstop>removeLibBtn</tabstop>
+  <tabstop>viewLibBtn</tabstop>
+  <tabstop>formatsLwg</tabstop>
+  <tabstop>selectAllFormatsBtn</tabstop>
+  <tabstop>clearFormatsBtn</tabstop>
+  <tabstop>saveFormatsBtn</tabstop>
+  <tabstop>dirLwg</tabstop>
+  <tabstop>addDirBtn</tabstop>
+  <tabstop>removeDirBtn</tabstop>
+  <tabstop>showDirInExplorerBtn</tabstop>
+  <tabstop>selectAllEnabledDirBtn</tabstop>
+  <tabstop>clearEnabledDirBtn</tabstop>
+  <tabstop>saveDirBtn</tabstop>
+  <tabstop>geoDataTbv</tabstop>
+  <tabstop>showRecInVGeoIntBtn</tabstop>
+  <tabstop>showRecInExplorerBtn</tabstop>
+  <tabstop>copyRecContentBtn</tabstop>
+  <tabstop>removeRecNotExistsBtn</tabstop>
+ </tabstops>
+ <resources>
+  <include location="../Resources/myicon/myicon.qrc"/>
+ </resources>
+ <connections/>
+</ui>

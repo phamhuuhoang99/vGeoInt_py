@@ -1,0 +1,606 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DatabaseWidget</class>
+ <widget class="QWidget" name="DatabaseWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1022</width>
+    <height>715</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item row="0" column="0">
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="groupTab">
+      <attribute name="title">
+       <string>Nhóm đối tượng</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_4">
+       <item row="0" column="0">
+        <layout class="QHBoxLayout" name="horizontalLayout_3">
+         <item>
+          <widget class="QLabel" name="gLbl">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Thêm mới nhóm đối tượng:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="gNameLed"/>
+         </item>
+         <item>
+          <widget class="QPushButton" name="gAddBtn">
+           <property name="text">
+            <string>Thêm</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Add.svg</normaloff>:/myicon/Add.svg</iconset>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="1" column="0">
+        <widget class="QListWidget" name="gLwg"/>
+       </item>
+       <item row="2" column="0">
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <widget class="QPushButton" name="gViewBtn">
+           <property name="text">
+            <string>Xem</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/TextAnnotation/Show.svg</normaloff>:/myicon/TextAnnotation/Show.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="gLoadFromFolderBtn">
+           <property name="text">
+            <string>Tải vào...</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Folder.svg</normaloff>:/myicon/Folder.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="gEditBtn">
+           <property name="text">
+            <string>Sửa</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Edit.svg</normaloff>:/myicon/Edit.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="gRemoveBtn">
+           <property name="text">
+            <string>Xóa</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Remove.svg</normaloff>:/myicon/Remove.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_2">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>408</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="classTab">
+      <attribute name="title">
+       <string>Loại đối tượng</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_6">
+       <item row="0" column="0">
+        <layout class="QGridLayout" name="gridLayout_5">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_2">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Nhóm đối tượng:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1" colspan="2">
+          <widget class="QComboBox" name="cGroupCbx">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="cLbl">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Thêm mới loại đối tượng:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLineEdit" name="cNameLed"/>
+         </item>
+         <item row="1" column="2">
+          <widget class="QPushButton" name="cAddBtn">
+           <property name="text">
+            <string>Thêm</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Add.svg</normaloff>:/myicon/Add.svg</iconset>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="1" column="0">
+        <widget class="QListWidget" name="cLwg"/>
+       </item>
+       <item row="2" column="0">
+        <layout class="QHBoxLayout" name="horizontalLayout_4">
+         <item>
+          <widget class="QPushButton" name="cViewBtn">
+           <property name="text">
+            <string>Xem</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/TextAnnotation/Show.svg</normaloff>:/myicon/TextAnnotation/Show.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="cLoadFromFolderBtn">
+           <property name="text">
+            <string>Tải vào...</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Folder.svg</normaloff>:/myicon/Folder.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="cEditBtn">
+           <property name="text">
+            <string>Sửa</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Edit.svg</normaloff>:/myicon/Edit.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="cRemoveBtn">
+           <property name="text">
+            <string>Xóa</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Remove.svg</normaloff>:/myicon/Remove.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_3">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>428</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="typeTab">
+      <attribute name="title">
+       <string>Kiểu đối tượng</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_8">
+       <item row="0" column="0">
+        <layout class="QGridLayout" name="gridLayout_7">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_4">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Nhóm đối tượng:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1" colspan="2">
+          <widget class="QComboBox" name="tGroupCbx">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_5">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Loại đối tượng:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1" colspan="2">
+          <widget class="QComboBox" name="tClassCbx">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="tLbl">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Thêm mới kiểu đối tượng:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QLineEdit" name="tNameLed"/>
+         </item>
+         <item row="2" column="2">
+          <widget class="QPushButton" name="tAddBtn">
+           <property name="text">
+            <string>Thêm</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Add.svg</normaloff>:/myicon/Add.svg</iconset>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="1" column="0">
+        <widget class="QListWidget" name="tLwg"/>
+       </item>
+       <item row="2" column="0">
+        <layout class="QHBoxLayout" name="horizontalLayout_5">
+         <item>
+          <widget class="QPushButton" name="tViewBtn">
+           <property name="text">
+            <string>Xem</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/TextAnnotation/Show.svg</normaloff>:/myicon/TextAnnotation/Show.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="tLoadFromFolderBtn">
+           <property name="text">
+            <string>Tải vào...</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Folder.svg</normaloff>:/myicon/Folder.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="tEditBtn">
+           <property name="text">
+            <string>Sửa</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Edit.svg</normaloff>:/myicon/Edit.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="tRemoveBtn">
+           <property name="text">
+            <string>Xóa</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Remove.svg</normaloff>:/myicon/Remove.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_4">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>428</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="objectTab">
+      <attribute name="title">
+       <string>Đối tượng</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="0" column="0">
+        <layout class="QGridLayout" name="gridLayout_9">
+         <item row="3" column="1">
+          <widget class="QLineEdit" name="oNameLed"/>
+         </item>
+         <item row="3" column="2">
+          <widget class="QPushButton" name="oAddBtn">
+           <property name="text">
+            <string>Thêm</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Add.svg</normaloff>:/myicon/Add.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="oLbl">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Thêm mới đối tượng:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_7">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Nhóm đối tượng:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1" colspan="2">
+          <widget class="QComboBox" name="oGroupCbx">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="oClassLbl">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Loại đối tượng:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1" colspan="2">
+          <widget class="QComboBox" name="oClassCbx">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="oTypeLbl">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Kiểu đối tượng:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1" colspan="2">
+          <widget class="QComboBox" name="oTypeCbx">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="1" column="0">
+        <widget class="QListWidget" name="oLwg"/>
+       </item>
+       <item row="2" column="0">
+        <layout class="QHBoxLayout" name="horizontalLayout_6">
+         <item>
+          <widget class="QPushButton" name="oViewBtn">
+           <property name="text">
+            <string>Xem</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/TextAnnotation/Show.svg</normaloff>:/myicon/TextAnnotation/Show.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="oLoadFromFolderBtn">
+           <property name="text">
+            <string>Tải vào...</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Folder.svg</normaloff>:/myicon/Folder.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="oEditBtn">
+           <property name="text">
+            <string>Sửa</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Edit.svg</normaloff>:/myicon/Edit.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="oRemoveBtn">
+           <property name="text">
+            <string>Xóa</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../Resources/myicon/myicon.qrc">
+             <normaloff>:/myicon/Remove.svg</normaloff>:/myicon/Remove.svg</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_5">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>428</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <widget class="MediaInputWidget" name="mediaInput" native="true">
+     <property name="minimumSize">
+      <size>
+       <width>400</width>
+       <height>0</height>
+      </size>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>MediaInputWidget</class>
+   <extends>QWidget</extends>
+   <header location="global">MediaInputWidget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources>
+  <include location="../Resources/myicon/myicon.qrc"/>
+ </resources>
+ <connections/>
+</ui>

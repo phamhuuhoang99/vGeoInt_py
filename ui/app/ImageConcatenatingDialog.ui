@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ImageConcatenatingDialog</class>
+ <widget class="QDialog" name="ImageConcatenatingDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>529</width>
+    <height>360</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Gộp kênh ảnh</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="5" column="0">
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>14</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item row="0" column="0">
+    <widget class="QLabel" name="label">
+     <property name="text">
+      <string>Raster layers:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="2">
+    <spacer name="horizontalSpacer">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>156</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item row="6" column="0" colspan="5">
+    <widget class="QLabel" name="noticeLbl">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="0" colspan="2">
+    <widget class="QProgressBar" name="progressBar">
+     <property name="minimumSize">
+      <size>
+       <width>200</width>
+       <height>0</height>
+      </size>
+     </property>
+     <property name="value">
+      <number>24</number>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="QLabel" name="label_2">
+     <property name="text">
+      <string>Ảnh kết quả:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="3">
+    <widget class="QPushButton" name="okBtn">
+     <property name="text">
+      <string>Đồng ý</string>
+     </property>
+     <property name="autoDefault">
+      <bool>false</bool>
+     </property>
+     <property name="default">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="5">
+    <widget class="QPushButton" name="cancelBtn">
+     <property name="text">
+      <string>Hủy</string>
+     </property>
+     <property name="autoDefault">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0" colspan="6">
+    <widget class="QListWidget" name="bandLswg"/>
+   </item>
+   <item row="3" column="5">
+    <widget class="QPushButton" name="selectFileNameBtn">
+     <property name="text">
+      <string>Chọn...</string>
+     </property>
+     <property name="icon">
+      <iconset>
+       <normaloff>:/myicon/File.svg</normaloff>:/myicon/File.svg</iconset>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="1" colspan="4">
+    <widget class="QLineEdit" name="outputFileNameLedr"/>
+   </item>
+   <item row="4" column="1" colspan="5">
+    <widget class="QCheckBox" name="autoAddOutputChbx">
+     <property name="text">
+      <string>Tự động mở ảnh kết quả khi hoàn thành</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0" colspan="6">
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QPushButton" name="upBtn">
+       <property name="text">
+        <string>Lên</string>
+       </property>
+       <property name="icon">
+        <iconset>
+         <normaloff>:/myicon/Up.svg</normaloff>:/myicon/Up.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="downBtn">
+       <property name="text">
+        <string>Xuống</string>
+       </property>
+       <property name="icon">
+        <iconset>
+         <normaloff>:/myicon/Down.svg</normaloff>:/myicon/Down.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="removeBtn">
+       <property name="text">
+        <string>Xóa</string>
+       </property>
+       <property name="icon">
+        <iconset>
+         <normaloff>:/myicon/Remove.svg</normaloff>:/myicon/Remove.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer_2">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>350</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item row="0" column="5">
+    <widget class="QPushButton" name="addBtn">
+     <property name="text">
+      <string>Thêm</string>
+     </property>
+     <property name="icon">
+      <iconset>
+       <normaloff>:/myicon/Add.svg</normaloff>:/myicon/Add.svg</iconset>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="1" colspan="4">
+    <widget class="QComboBox" name="rasterLayerCbx">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <resources>
+  <include location="myicon.qrc"/>
+ </resources>
+ <connections/>
+</ui>

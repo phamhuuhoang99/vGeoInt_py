@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MotionDetectionDialog</class>
+ <widget class="QDialog" name="MotionDetectionDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>650</width>
+    <height>700</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Phát hiện thay đổi lớp phủ mặt đất AI/ML (Model: random_forest_model_s2.joblib)</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QGroupBox" name="inputGroupBox">
+     <property name="title">
+      <string>Dữ liệu đầu vào</string>
+     </property>
+     <layout class="QGridLayout" name="inputGridLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="beforeLabel">
+        <property name="text">
+         <string>Ảnh thời điểm trước:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="beforeRasterLayerCbx"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="afterLabel">
+        <property name="text">
+         <string>Ảnh thời điểm sau:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="afterRasterLayerCbx"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+
+   <item>
+    <widget class="QGroupBox" name="changeVisualizationGroupBox">
+     <property name="title">
+      <string>Hiển thị bản đồ thay đổi</string>
+     </property>
+     <layout class="QVBoxLayout" name="changeVisualizationLayout">
+      <item>
+       <widget class="QLabel" name="matrixExplanationLabel">
+        <property name="text">
+         <string>🔢 Mã hóa ma trận: XY (X=lớp trước, Y=lớp sau)
+Ví dụ: 12 = Đất trống → Thảm thực vật, 33 = Nước → Nước (không đổi)</string>
+        </property>
+        <property name="styleSheet">
+         <string>background-color: #F0F8FF; padding: 8px; border: 1px solid #B0C4DE; border-radius: 4px;</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QGridLayout" name="changeColorGrid">
+        <item row="0" column="0">
+         <widget class="QLabel" name="noChangeLabel">
+          <property name="text">
+           <string>Không thay đổi (11,22,33,44):</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QLabel" name="noChangeColorLbl">
+          <property name="styleSheet">
+           <string>background-color: #808080; border: 1px solid #000;</string>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>30</width>
+            <height>20</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="2">
+         <widget class="QLabel" name="vegetation2landLabel">
+          <property name="text">
+           <string>Thực vật→Đất (21):</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="3">
+         <widget class="QLabel" name="vegetation2landColorLbl">
+          <property name="styleSheet">
+           <string>background-color: #FFA500; border: 1px solid #000;</string>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>30</width>
+            <height>20</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="land2vegetationLabel">
+          <property name="text">
+           <string>Đất→Thực vật (12):</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QLabel" name="land2vegetationColorLbl">
+          <property name="styleSheet">
+           <string>background-color: #90EE90; border: 1px solid #000;</string>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>30</width>
+            <height>20</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QLabel" name="water2buildingLabel">
+          <property name="text">
+           <string>Nước→Xây dựng (34):</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="3">
+         <widget class="QLabel" name="water2buildingColorLbl">
+          <property name="styleSheet">
+           <string>background-color: #4169E1; border: 1px solid #000;</string>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>30</width>
+            <height>20</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="land2waterLabel">
+          <property name="text">
+           <string>Đất→Nước (13):</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QLabel" name="land2waterColorLbl">
+          <property name="styleSheet">
+           <string>background-color: #87CEEB; border: 1px solid #000;</string>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>30</width>
+            <height>20</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="2">
+         <widget class="QLabel" name="building2landLabel">
+          <property name="text">
+           <string>Xây dựng→Đất (41):</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="3">
+         <widget class="QLabel" name="building2landColorLbl">
+          <property name="styleSheet">
+           <string>background-color: #DC143C; border: 1px solid #000;</string>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>30</width>
+            <height>20</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="colorNoteLabel">
+        <property name="text">
+         <string>💡 Màu xám: Khu vực không thay đổi | Màu khác: Các loại thay đổi cụ thể</string>
+        </property>
+        <property name="styleSheet">
+         <string>color: #666; font-style: italic;</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="outputGroupBox">
+     <property name="title">
+      <string>Kết quả đầu ra</string>
+     </property>
+     <layout class="QVBoxLayout" name="outputMainLayout">
+      <item>
+       <layout class="QHBoxLayout" name="outputLayout">
+        <item>
+         <widget class="QLabel" name="outputLabel">
+          <property name="text">
+           <string>Bản đồ thay đổi:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="outputLedr">
+          <property name="placeholderText">
+           <string>Chọn đường dẫn lưu file bản đồ thay đổi (.tif)</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="browseBtn">
+          <property name="text">
+           <string>Duyệt</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="outputInfoLabel">
+        <property name="text">
+         <string>📁 Kết quả sẽ bao gồm: bản đồ thay đổi có màu sắc (.tif), thống kê (.csv), biểu đồ (.png), chú giải (.png)</string>
+        </property>
+        <property name="styleSheet">
+         <string>color: #666; font-style: italic;</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QCheckBox" name="autoAddOutputChbx">
+     <property name="text">
+      <string>Tự động thêm kết quả vào bản đồ</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QProgressBar" name="progressBar">
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="noticeLbl">
+     <property name="text">
+      <string/>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttonLayout">
+     <item>
+      <spacer name="buttonSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="aiProcessBtn">
+       <property name="text">
+        <string>🤖 ML Phân tích thay đổi</string>
+       </property>
+       <property name="toolTip">
+        <string>Sử dụng Machine Learning để phân loại lớp phủ mặt đất và phát hiện thay đổi với mã hóa ma trận</string>
+       </property>
+       <property name="styleSheet">
+        <string>QPushButton {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 14px;
+}
+QPushButton:hover {
+    background-color: #45a049;
+}
+QPushButton:pressed {
+    background-color: #3d8b40;
+}</string>
+       </property>
+      </widget>
+     </item>
+
+     <item>
+      <widget class="QPushButton" name="cancelBtn">
+       <property name="text">
+        <string>Hủy</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,185 @@
+{
+  "otb_path": "C:\\OTB-9.1.0-Win64\\bin\\otbcli_Pansharpening.bat",
+  "default_method": "rcs",
+  "default_timeout": 300,
+  "output_formats": [
+    ".tif",
+    ".tiff"
+  ],
+  "input_formats": [
+    ".tif",
+    ".tiff",
+    ".jp2",
+    ".jpg",
+    ".png",
+    ".img",
+    ".hdr"
+  ],
+  "methods": {
+    "rcs": {
+      "name": "Resolution-Preserving Color-Sharpening",
+      "description": "Fast and efficient pansharpening method suitable for most applications",
+      "parameters": {
+        "radiusx": {
+          "type": "int",
+          "range": [1, 50],
+          "default": 9,
+          "description": "Radius of the sliding window in X direction"
+        },
+        "radiusy": {
+          "type": "int",
+          "range": [1, 50],
+          "default": 9,
+          "description": "Radius of the sliding window in Y direction"
+        }
+      },
+      "pros": [
+        "Fast processing speed",
+        "Good preservation of spatial resolution",
+        "Low memory usage"
+      ],
+      "cons": [
+        "May lose some spectral information",
+        "Less suitable for complex scenes"
+      ],
+      "recommended_for": [
+        "Large datasets",
+        "Quick processing needs",
+        "Urban areas"
+      ]
+    },
+    "lmvm": {
+      "name": "Local Mean and Variance Matching",
+      "description": "High-quality pansharpening using local statistics",
+      "parameters": {
+        "radiusx": {
+          "type": "int",
+          "range": [1, 50],
+          "default": 3,
+          "description": "Radius of the sliding window in X direction"
+        },
+        "radiusy": {
+          "type": "int",
+          "range": [1, 50],
+          "default": 3,
+          "description": "Radius of the sliding window in Y direction"
+        }
+      },
+      "pros": [
+        "Good balance of speed and quality",
+        "Preserves spectral information well",
+        "Works well with various image types"
+      ],
+      "cons": [
+        "Slower than RCS",
+        "May introduce some artifacts in edges"
+      ],
+      "recommended_for": [
+        "Medium-sized datasets",
+        "Agricultural monitoring",
+        "Environmental studies"
+      ]
+    },
+    "bayes": {
+      "name": "Bayesian Data Fusion",
+      "description": "Advanced statistical fusion method providing highest quality",
+      "parameters": {
+        "lambda_weight": {
+          "type": "float",
+          "range": [0.0001, 0.9999],
+          "default": 0.9999,
+          "description": "Weight parameter controlling the fusion balance"
+        },
+        "s": {
+          "type": "float",
+          "range": [0.1, 10.0],
+          "default": 1.0,
+          "description": "Scaling coefficient for the fusion process"
+        }
+      },
+      "pros": [
+        "Highest quality results",
+        "Excellent spectral preservation",
+        "Good for complex scenes",
+        "Theoretical foundation"
+      ],
+      "cons": [
+        "Slowest processing",
+        "Requires more memory",
+        "Parameter tuning may be needed"
+      ],
+      "recommended_for": [
+        "Small to medium datasets",
+        "Scientific analysis",
+        "High-quality visualization",
+        "Research applications"
+      ]
+    }
+  },
+  "system_requirements": {
+    "otb_version": "9.1.0+",
+    "python_version": "3.7+",
+    "min_ram": "4GB",
+    "recommended_ram": "8GB",
+    "supported_os": [
+      "Windows 10",
+      "Windows 11"
+    ]
+  },
+  "performance_tips": {
+    "small_files": {
+      "size_range": "<100MB",
+      "recommended_method": "bayes",
+      "recommended_params": {
+        "lambda_weight": 0.9999,
+        "s": 1.0
+      }
+    },
+    "medium_files": {
+      "size_range": "100MB-1GB",
+      "recommended_method": "lmvm",
+      "recommended_params": {
+        "radiusx": 3,
+        "radiusy": 3
+      }
+    },
+    "large_files": {
+      "size_range": ">1GB",
+      "recommended_method": "rcs",
+      "recommended_params": {
+        "radiusx": 5,
+        "radiusy": 5
+      }
+    }
+  },
+  "troubleshooting": {
+    "common_errors": {
+      "otb_not_found": {
+        "error": "OTB executable not found",
+        "solutions": [
+          "Install OTB 9.1.0 from https://www.orfeo-toolbox.org/",
+          "Ensure installation path is C:\\OTB-9.1.0-Win64\\",
+          "Check if otbcli_Pansharpening.bat exists"
+        ]
+      },
+      "memory_error": {
+        "error": "Out of memory or process killed",
+        "solutions": [
+          "Reduce image size by cropping to area of interest",
+          "Use smaller radius parameters",
+          "Switch to RCS method",
+          "Increase system RAM"
+        ]
+      },
+      "timeout_error": {
+        "error": "Process timed out",
+        "solutions": [
+          "Increase timeout value",
+          "Use faster method (RCS)",
+          "Reduce image size",
+          "Check system performance"
+        ]
+      }
+    }
+  }
+}

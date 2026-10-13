@@ -1,0 +1,32 @@
+"""QgsApplication startup shared by the three apps (port of main.cpp)."""
+
+import os
+import sys
+from pathlib import Path
+
+from qgis.core import QgsApplication
+from qgis.PyQt.QtCore import QResource
+
+from vgeoint.common.paths import RESOURCES_DIR
+
+
+def _qgis_prefix() -> str:
+    # Inside a pixi/conda env QGIS lives under <env>/Library; no hardcoded C:/OSGeo4W.
+    env = os.environ.get("CONDA_PREFIX") or sys.prefix
+    return str(Path(env) / "Library")
+
+
+def register_resources() -> None:
+    """Register compiled .rcc bundles so ':/myicon/...' paths from .ui files resolve."""
+    for rcc in RESOURCES_DIR.glob("*.rcc"):
+        QResource.registerResource(str(rcc))
+
+
+def create_app(app_name: str, gui: bool = True) -> QgsApplication:
+    QgsApplication.setPrefixPath(_qgis_prefix(), True)
+    # QGIS 4 / PyQt6 bindings take argv as bytes.
+    app = QgsApplication([a.encode() for a in sys.argv], gui)
+    QgsApplication.setApplicationName(app_name)
+    register_resources()
+    QgsApplication.initQgis()
+    return app

@@ -1,0 +1,9 @@
+.pixi/
+__pycache__/
+*.pyc
+*.egg-info/
+models/
+logs/
+output/
+.env
+resources/*.rcc

@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SearchingWidget</class>
+ <widget class="QWidget" name="SearchingWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>428</width>
+    <height>200</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>SearchingWidget</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout_2">
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item row="0" column="0">
+    <widget class="QGroupBox" name="groupBox">
+     <property name="title">
+      <string/>
+     </property>
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="0" column="2">
+       <widget class="QPushButton" name="viewGroupBtn">
+        <property name="text">
+         <string>Xem nhóm này</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../Resources/myicon/myicon.qrc">
+          <normaloff>:/myicon/TextAnnotation/Show.svg</normaloff>:/myicon/TextAnnotation/Show.svg</iconset>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QCheckBox" name="classChb">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Loại đối tượng</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="classCbx">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QPushButton" name="viewClassBtn">
+        <property name="text">
+         <string>Xem loại này</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../Resources/myicon/myicon.qrc">
+          <normaloff>:/myicon/TextAnnotation/Show.svg</normaloff>:/myicon/TextAnnotation/Show.svg</iconset>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QCheckBox" name="typeChb">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Kiểu đối tượng</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="typeCbx">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QPushButton" name="viewTypeBtn">
+        <property name="text">
+         <string>Xem kiểu này</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../Resources/myicon/myicon.qrc">
+          <normaloff>:/myicon/TextAnnotation/Show.svg</normaloff>:/myicon/TextAnnotation/Show.svg</iconset>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="3">
+       <widget class="QStackedWidget" name="stackedWidget">
+        <widget class="AircraftSearchingWidget" name="aircraftSearchingPage"/>
+        <widget class="TankSearchingWidget" name="tankSearchingPage"/>
+        <widget class="RocketSearchingWidget" name="rocketSearchingPage"/>
+        <widget class="ShipSearchingWidget" name="shipSearchingPage"/>
+       </widget>
+      </item>
+      <item row="4" column="0" colspan="2">
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>275</width>
+          <height>26</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item row="4" column="2">
+       <widget class="QPushButton" name="searchBtn">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Tìm</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../Resources/myicon/myicon.qrc">
+          <normaloff>:/myicon/Search.svg</normaloff>:/myicon/Search.svg</iconset>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0" colspan="2">
+       <widget class="QLabel" name="titleLbl">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>10</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Nhóm đối tượng</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <customwidgets>
+  <customwidget>
+   <class>AircraftSearchingWidget</class>
+   <extends>QWidget</extends>
+   <header location="global">AircraftSearchingWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>TankSearchingWidget</class>
+   <extends>QWidget</extends>
+   <header location="global">TankSearchingWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>RocketSearchingWidget</class>
+   <extends>QWidget</extends>
+   <header location="global">RocketSearchingWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ShipSearchingWidget</class>
+   <extends>QWidget</extends>
+   <header location="global">ShipSearchingWidget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources>
+  <include location="../Resources/myicon/myicon.qrc"/>
+ </resources>
+ <connections/>
+</ui>
