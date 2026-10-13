@@ -53,7 +53,7 @@ from vgeoint.app.layer_panel_menu import LayerPanelMenu
 from vgeoint.app.main_controller import MainController
 from vgeoint.app.maptools.measure import MeasureTool
 from vgeoint.app.menu_bar import MenuBar
-from vgeoint.app.plugins import RASTER, load_plugins
+from vgeoint.app.plugins import load_plugins
 from vgeoint.app.status_widgets import CoordinateWidget, ScaleWidget
 from vgeoint.common.defines import CATALOG_NAME, ENGINE_NAME, SOFT_NAME, VERSION
 from vgeoint.common.paths import RESOURCES_DIR
@@ -849,7 +849,7 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
 
         # Plugins
         for action, plugin in self.plugins.values():
-            plugin.complete.connect(lambda p=plugin: self._plugin_complete(p))
+            plugin.complete.connect(lambda p=plugin: self.main_controller.add_output_files(p))
             if action is not None:
                 action.triggered.connect(lambda _c=False, p=plugin: self._show_plugin(p))
 
@@ -884,13 +884,6 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         self.rubber_band.setToGeometry(f.geometry(), vl)
         self.feature_selection_layer = vl
         self.feature_selection_id = f.id()
-
-    def _plugin_complete(self, plugin):
-        if not plugin.auto_add_output_files():
-            return
-        add = self.main_controller.add_raster if plugin.output_data_type() == RASTER else self.main_controller.add_vector
-        for output in plugin.output_files():
-            add(output)
 
     def _show_plugin(self, plugin):
         plugin.set_map_canvas(self.map_canvas)

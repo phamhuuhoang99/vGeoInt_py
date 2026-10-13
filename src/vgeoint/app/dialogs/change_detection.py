@@ -16,6 +16,7 @@ from qgis.PyQt.QtCore import QFile, QFileInfo, pyqtSignal
 from qgis.PyQt.QtGui import QColor, QPalette
 from qgis.PyQt.QtWidgets import QApplication, QColorDialog, QDialog, QFileDialog
 
+from vgeoint.app.dialogs.band_math import output_grid
 from vgeoint.common.ui import load_ui_class
 from vgeoint.common.utils import get_icon, settings
 
@@ -250,8 +251,7 @@ class ChangeDetectionDialog(QDialog, Ui_ChangeDetectionDialog):
             output,
             "GTiff",
             extent,
-            int(extent.width()),
-            int(extent.height()),
+            *output_grid(extent, [before, after]),
             [entry1, entry2],
             QgsProject.instance().transformContext(),
         )
@@ -285,8 +285,8 @@ class ChangeDetectionDialog(QDialog, Ui_ChangeDetectionDialog):
             output,
             "GTiff",
             extent,
-            int(extent.width()),
-            int(extent.height()),
+            input_lyr.width(),
+            input_lyr.height(),
             [entry],
             QgsProject.instance().transformContext(),
         )

@@ -19,6 +19,17 @@ def _red(text: str) -> str:
     return f"<font color='red'>{text}</font>"
 
 
+def output_grid(extent: QgsRectangle, layers: list[QgsRasterLayer]) -> tuple[int, int]:
+    """Columns/rows covering `extent` at the finest pixel size of the input layers.
+
+    The C++ app used extent width/height in map units as the pixel count, which upsampled metric
+    rasters (10 m pixels -> 1 m) and produced ~0 columns for rasters in degrees.
+    """
+    res_x = min((l.rasterUnitsPerPixelX() for l in layers if l.rasterUnitsPerPixelX() > 0), default=1.0)
+    res_y = min((l.rasterUnitsPerPixelY() for l in layers if l.rasterUnitsPerPixelY() > 0), default=1.0)
+    return max(1, round(extent.width() / res_x)), max(1, round(extent.height() / res_y))
+
+
 # Button -> text inserted into the expression editor
 _OPERATOR_BUTTONS = {
     "mPlusPushButton": " + ",
@@ -164,24 +175,21 @@ class BandMathDialog(QDialog, Ui_BandMathDialog):
         self.progressBar.show()
         self.progressBar.setValue(0)
 
-        # Số cột/hàng = độ rộng/cao của extent (đơn vị bản đồ), giữ nguyên như bản C++
+        columns, rows = output_grid(extent, [e.raster for e in entries])
         calculator = QgsRasterCalculator(
             expression,
             output,
             "GTiff",
             extent,
-            int(extent.width()),
-            int(extent.height()),
+            columns,
+            rows,
             entries,
             QgsProject.instance().transformContext(),
         )
         result = calculator.processCalculation(feedback)
         if result == QgsRasterCalculator.Result.Success:
             self.output_files = [output]
-            if self.auto_add_output_files():
-                new_layer = QgsRasterLayer(output, QFileInfo(output).baseName())
-                if new_layer.isValid():
-                    QgsProject.instance().addMapLayer(new_layer)
+            # The "auto add" checkbox is handled by MainController via the `complete` signal.
             QApplication.beep()
             self.complete.emit()
             self.close()

@@ -13,6 +13,7 @@ from vgeoint.app.models.layer_panel_model import LayerPanelModel
 from vgeoint.app.models.project_model import ProjectModel
 from vgeoint.app.models.raster_model import RasterModel
 from vgeoint.app.models.vector_model import VectorModel
+from vgeoint.app.plugins import RASTER
 from vgeoint.common.utils import message_timeout
 
 
@@ -108,6 +109,10 @@ class MainController:
             )
             return None
         dialog = getattr(mod, class_name)(*args)
+        # The C++ app only wired `complete` for DLL plugins, so the dialogs' "auto add result"
+        # checkbox never worked; connect it for every dialog that reports output files.
+        if hasattr(dialog, "complete") and hasattr(dialog, "auto_add_output_files"):
+            dialog.complete.connect(lambda d=dialog: self.add_output_files(d))
         dialog.setModal(True)
         if modal_exec:
             dialog.exec()
@@ -115,6 +120,20 @@ class MainController:
         else:
             dialog.show()
         return dialog
+
+    def add_output_files(self, source):
+        """Add the results of a dialog/plugin to the map when its "auto add" option is on.
+
+        `output_files` / `output_data_type` may be attributes or methods (BPluginInterface style).
+        """
+        if not source.auto_add_output_files():
+            return
+        files = source.output_files() if callable(source.output_files) else source.output_files
+        data_type = getattr(source, "output_data_type", RASTER)
+        data_type = data_type() if callable(data_type) else data_type
+        add = self.add_raster if data_type == RASTER else self.add_vector
+        for output in files:
+            add(output)
 
     def _std_dialog(self, module: str, class_name: str):
         mw = self.main_window

@@ -22,11 +22,6 @@ def _band(path, band=1):
     return arr
 
 
-def _upsample(arr, factor=10):
-    # The C++ code uses extent.width()/height() (map units) as column/row counts -> 1 m pixels.
-    return np.repeat(np.repeat(arr, factor, axis=0), factor, axis=1)
-
-
 @pytest.fixture
 def two_rasters(window, tmp_path):
     a = make_raster(tmp_path / "a.tif", seed=1)
@@ -65,8 +60,6 @@ def test_band_math_lists_bands_and_builds_expression(two_rasters, window):
 
 
 def test_band_math_apply(two_rasters, window, tmp_path):
-    from qgis.core import QgsProject
-
     a, b = two_rasters
     dlg = _band_math(window)
     out = tmp_path / "out.tif"
@@ -80,10 +73,10 @@ def test_band_math_apply(two_rasters, window, tmp_path):
     assert completed and dlg.output_files == [str(out)]
     result, gt = _read(out)
     expected = (_band(a, 1) + _band(b, 2)) * 2 - _band(a, 3)
-    assert result.shape == (480, 640)
-    np.testing.assert_allclose(result, _upsample(expected))
+    # Output keeps the input pixel size (the C++ app used map units as pixel counts)
+    assert result.shape == (48, 64)
+    np.testing.assert_allclose(result, expected)
     assert gt[0] == 500000 and gt[3] == 2300000
-    assert [lyr.name() for lyr in QgsProject.instance().mapLayersByName("out")]
 
 
 def test_band_math_invalid_expression(two_rasters, window, tmp_path):
@@ -150,8 +143,8 @@ def test_change_detection_apply(two_rasters, window, tmp_path):
             expected[i][seg == value] = c
 
     result, gt = _read(out)
-    assert result.shape == (4, 480, 640)
-    np.testing.assert_array_equal(result, np.stack([_upsample(e) for e in expected]))
+    assert result.shape == (4, 48, 64)
+    np.testing.assert_array_equal(result, expected)
     assert gt[0] == 500000 and gt[3] == 2300000
 
 
@@ -197,3 +190,41 @@ def test_change_detection_colors(window, monkeypatch):
 
     dlg2 = _change_detection(window)
     assert dlg2.nochange_color_label().getRgb() == (200, 200, 200, 0)
+
+
+def test_band_math_degree_raster(window, tmp_path):
+    """Rasters in degrees used to give ~0 columns in the C++ app."""
+    from osgeo import gdal, osr
+
+    path = make_raster(tmp_path / "geo.tif", bands=1, seed=3)
+    ds = gdal.Open(path, gdal.GA_Update)
+    ds.SetGeoTransform((105.0, 0.001, 0, 21.0, 0, -0.001))
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    ds.SetProjection(srs.ExportToWkt())
+    ds = None
+    window.main_controller.add_raster(path)
+
+    dlg = _band_math(window)
+    out = tmp_path / "geo_out.tif"
+    dlg.outputLedr.setText(str(out))
+    dlg.expressionTder.setPlainText('"geo@k1" * 2')
+    dlg.apply()
+    result, _gt = _read(out)
+    np.testing.assert_allclose(result, _band(path, 1) * 2)
+
+
+@pytest.mark.parametrize("auto_add", [True, False])
+def test_auto_add_output_via_controller(two_rasters, window, tmp_path, auto_add):
+    from qgis.core import QgsProject
+
+    mw = window
+    dlg = mw.main_controller._exec_dialog(
+        "band_math", "BandMathDialog", mw, mw.map_canvas, mw.layer_tree_view, modal_exec=False
+    )
+    out = tmp_path / "auto.tif"
+    dlg.outputLedr.setText(str(out))
+    dlg.expressionTder.setPlainText('"a@k1" + 1')
+    dlg.autoAddOutputChbx.setChecked(auto_add)
+    dlg.apply()
+    assert bool(QgsProject.instance().mapLayersByName("auto")) == auto_add

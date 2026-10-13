@@ -158,7 +158,7 @@ def test_filter_apply(filter_dialog, sample_raster, tmp_path, code):
     assert "32648" in proj or "UTM zone 48N" in proj
     np.testing.assert_array_equal(arr, _expected(code, src_arr[1], dlg))
     assert completed and dlg.output_files() == [str(out)]
-    # C++: không có ai nhận tín hiệu complete() -> không tự thêm layer
+    # The dialog itself never adds layers; MainController does it via `complete`
     assert len(QgsProject.instance().mapLayers()) == n_layers
 
 
