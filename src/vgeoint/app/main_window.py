@@ -1070,6 +1070,20 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             act.setChecked(False)
             return
 
+        # Not in the C++ app: if the selected layer already has the right geometry type, edit it
+        # directly instead of offering to create a new temporary layer.
+        active = self.active_layer()
+        if isinstance(active, QgsVectorLayer) and active.geometryType() == geometry_type:
+            if not active.startEditing():
+                self._push(f"Thêm {vn_name}", f"Không thể mở chỉnh sửa lớp {active.name()}", Qgis.MessageLevel.Critical)
+                act.setChecked(False)
+                return
+            self.map_canvas.setCurrentLayer(active)
+            self.map_canvas.setMapTool(tool)
+            act.setChecked(True)
+            self.sync_editing_state()
+            return
+
         question = QMessageBox(
             QMessageBox.Icon.Question,
             f"Thêm {vn_name}",
@@ -1089,6 +1103,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         if new_layer.isValid():
             self.project.addMapLayer(new_layer)
             new_layer.startEditing()
+            # Select it in the layer panel too, so it is clear which layer is being edited.
+            self.layer_tree_view.setCurrentLayer(new_layer)
             self.map_canvas.setCurrentLayer(new_layer)
             self.map_canvas.setMapTool(tool)
             act.setChecked(True)

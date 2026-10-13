@@ -254,3 +254,35 @@ def test_create_features_list_vietnamese_order(window):
     panel.refresh()
     names = [panel.layer_list.item(i).text() for i in range(panel.layer_list.count())]
     assert names == ["bản đồ", "Data", "Đường giao thông", "Giếng khoan", "Hồ chứa"]
+
+
+@pytest.mark.parametrize("geom, geom_type", [("Point", "Point"), ("LineString", "Line"), ("Polygon", "Polygon")])
+def test_add_feature_edits_selected_layer_of_same_type(window, monkeypatch, geom, geom_type):
+    """Selected layer of the matching type: start editing it, no "create a new layer?" question."""
+    from qgis.core import Qgis, QgsVectorLayer
+    from qgis.PyQt.QtWidgets import QMessageBox
+
+    asked = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: asked.append(self.text()) or QMessageBox.StandardButton.Yes)
+    layer = QgsVectorLayer(f"{geom}?crs=EPSG:4326", "mine", "memory")
+    window.main_controller.vector_model.add_vector_layer(layer)  # becomes the selected layer
+    act = window.add_feature_acts[getattr(Qgis.GeometryType, geom_type)]
+    act.trigger()
+    assert not asked
+    assert layer.isEditable() and window.map_canvas.currentLayer() is layer
+    assert window.toggle_editing_act.isChecked() and act.isChecked()
+    assert len(window.project.mapLayers()) == 1  # no extra temporary layer
+
+
+def test_add_feature_other_type_creates_selected_temp_layer(window, monkeypatch):
+    """Selected layer of another type: ask, create the temp layer, select and edit it."""
+    from qgis.core import Qgis, QgsVectorLayer
+    from qgis.PyQt.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: QMessageBox.StandardButton.Yes)
+    other = QgsVectorLayer("Polygon?crs=EPSG:4326", "zones", "memory")
+    window.main_controller.vector_model.add_vector_layer(other)
+    window.add_feature_acts[Qgis.GeometryType.Point].trigger()
+    new = window.layer_tree_view.currentLayer()
+    assert new.name() == "Điểm" and new.isEditable() and not other.isEditable()
+    assert window.map_canvas.mapTool() is window.tool_add_point_feature
