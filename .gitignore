@@ -8,3 +8,5 @@ output/
 .env
 resources/*.rcc
 data/
+build/
+dist/

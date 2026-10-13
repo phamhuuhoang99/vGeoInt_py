@@ -84,3 +84,18 @@ def test_ai_env_imports(qgis_app, qtbot, tmp_path, monkeypatch):
         r.start_script("imports.py", [])
     assert blocker.args[0] == 0, "\n".join(err)
     assert events and events[0]["type"] == "result"
+
+
+def test_missing_ai_env_is_reported(qgis_app, qtbot, monkeypatch, tmp_path):
+    """An installed copy without the AI add-on reports it instead of failing on imports."""
+    from vgeoint.ai import runner
+
+    monkeypatch.delenv("VGEOINT_AI_PYTHON", raising=False)
+    monkeypatch.setattr(runner, "ROOT", tmp_path)  # no .pixi/envs/ai, no envs/ai
+    r = runner.ScriptRunner()
+    errors = []
+    r.error_line.connect(errors.append)
+    with qtbot.waitSignal(r.finished, timeout=5000) as blocker:
+        r.start_script("ship_detection.py", [])
+    assert blocker.args == [-1, True]
+    assert "Chưa cài gói AI" in errors[0]

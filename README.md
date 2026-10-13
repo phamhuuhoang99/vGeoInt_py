@@ -39,3 +39,22 @@ models sẵn có, ví dụ: `mklink /J models ..\vGeoInt_v2\vGeoInt_v2\models` �
 `VGEOINT_MODELS_DIR`.
 
 Test chạy model thật: `pixi run pytest -m slow`.
+
+## Đóng gói bộ cài (Windows)
+
+Cần Inno Setup 6 (`C:\Program Files (x86)\Inno Setup 6\ISCC.exe`).
+
+```bash
+pixi run -e package package          # dist/vGeoInt-Setup-<version>.exe   (~0,9 GB)
+pixi run -e package package --ai     # dist/vGeoInt-AI-Setup-<version>.exe (~1,4 GB)
+pixi run -e package package --all    # cả hai
+```
+
+- **vGeoInt-Setup**: 3 app + môi trường QGIS (`pixi-pack` môi trường `runtime`) + bản đồ nền vGeoCatalog.
+  Cài cho người dùng hiện tại (không cần quyền admin), tạo shortcut vGeoInt / vGeoCatalog / vGeoEngine.
+  Khi cài, `pixi-unpack` giải nén môi trường vào `<thư mục cài>\env` và `make_launch_env.py` ghi lại
+  biến môi trường; shortcut chạy `env\pythonw.exe launcher.pyw <module>`.
+- **vGeoInt-AI-Setup**: môi trường `ai` + thư mục `models/`, tự cài vào thư mục của vGeoInt đã cài
+  (`envs\ai`, `models`). Không cài gói này thì các chức năng AI báo "Chưa cài gói AI".
+- Máy đích không cần Python, OSGeo4W hay Visual Studio. vGeoCatalog / vGeoEngine cần một server
+  PostgreSQL + PostGIS (mật khẩu được hỏi lần đầu, hoặc đặt biến `VGEOINT_DB_PASSWORD`).

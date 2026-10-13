@@ -41,3 +41,15 @@ pypi-dependencies = { ultralytics = "*", sahi = "*", segmentation-models-pytorch
 [environments]
 default = { features = ["test"], solve-group = "gui" }
 ai = { features = ["ai"], no-default-feature = true }
+# What the installer ships: the GUI env without test tools, same versions as `default`.
+runtime = { solve-group = "gui" }
+package = { features = ["package"], no-default-feature = true }
+
+# ---------------------------------------------------------------- packaging
+[feature.package.dependencies]
+python = "3.12.*"
+pixi-pack = "0.7.*"
+pixi-unpack = "0.7.*"
+
+[feature.package.tasks]
+package = "python packaging/build.py"

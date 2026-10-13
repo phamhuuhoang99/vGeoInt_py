@@ -11,7 +11,7 @@ import os
 import sys
 from pathlib import Path
 
-from qgis.PyQt.QtCore import QObject, QProcess, QProcessEnvironment, pyqtSignal
+from qgis.PyQt.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSignal
 
 from vgeoint.common.paths import MODELS_DIR, ROOT, SCRIPTS_DIR
 
@@ -23,9 +23,17 @@ def python_for(env: str = "ai") -> str:
     override = os.environ.get(f"VGEOINT_{env.upper()}_PYTHON")
     if override:
         return override
-    env_dir = ROOT / ".pixi" / "envs" / env
-    exe = env_dir / ("python.exe" if sys.platform == "win32" else "bin/python")
-    return str(exe) if exe.exists() else sys.executable
+    # .pixi/envs/<env>: development checkout; envs/<env>: installed by the AI add-on installer.
+    for env_dir in (ROOT / ".pixi" / "envs" / env, ROOT / "envs" / env):
+        exe = env_dir / ("python.exe" if sys.platform == "win32" else "bin/python")
+        if exe.exists():
+            return str(exe)
+    return sys.executable
+
+
+def env_available(env: str) -> bool:
+    """True when the env has its own interpreter (or an override), i.e. not falling back to sys.executable."""
+    return python_for(env) != sys.executable or bool(os.environ.get(f"VGEOINT_{env.upper()}_PYTHON"))
 
 
 def _has_foreign_gdal(directory: str, env_prefix: Path) -> bool:
@@ -134,10 +142,20 @@ class ScriptRunner(QObject):
         self.process.setWorkingDirectory(working_dir or str(ROOT))
 
         self._stdout_buffer = self._stderr_buffer = ""
+        if program is None and not env_available(self.env):
+            # Installed copy without the AI add-on: report it instead of an ImportError from the script.
+            QTimer.singleShot(0, self._missing_env)
+            return
         if program is None:
             self.process.start(python, ["-u", str(script_path(script)), *map(str, args)])
         else:
             self.process.start(program, [*map(str, args)])
+
+    def _missing_env(self):
+        self.error_line.emit(
+            "Chưa cài gói AI (môi trường \"ai\"). Hãy cài vGeoInt-AI-Setup rồi chạy lại chức năng này."
+        )
+        self.finished.emit(-1, True)
 
     def is_running(self) -> bool:
         return self.process.state() != QProcess.ProcessState.NotRunning
