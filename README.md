@@ -26,3 +26,16 @@ Model weights không nằm trong git. Đặt vào `models/` hoặc trỏ biến 
 - `ui/`: file Qt Designer gốc, dùng lại nguyên vẹn
 - `resources/`: icon/ảnh, `.qrc` được compile thành `.rcc` lúc chạy (`pixi run build-resources`)
 - `sql/`: script PostgreSQL
+
+## Môi trường AI
+
+```bash
+pixi install -e ai      # PyTorch, ultralytics, rasterio, onnxruntime... (vài GB)
+```
+
+Các dialog AI chạy script trong `src/vgeoint/ai/scripts` bằng python của môi trường `ai`
+(`vgeoint.ai.runner.ScriptRunner`). Model đặt trong `models/` — có thể là junction tới thư mục
+models sẵn có, ví dụ: `mklink /J models ..\vGeoInt_v2\vGeoInt_v2\models` — hoặc đặt biến
+`VGEOINT_MODELS_DIR`.
+
+Test chạy model thật: `pixi run pytest -m slow`.

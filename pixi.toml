@@ -35,8 +35,8 @@ test = "pytest -q"
 # ---------------------------------------------------------------- AI scripts
 # Separate interpreter: the GUI launches these scripts as subprocesses.
 [feature.ai]
-dependencies = { python = "3.12.*", pytorch = "*", torchvision = "*", scikit-learn = "*", joblib = "*", rasterio = "*", geopandas = "*", shapely = "*", opencv = "*", scipy = "*", earthengine-api = "*" }
-pypi-dependencies = { ultralytics = "*", sahi = "*", segmentation-models-pytorch = "*" }
+dependencies = { python = "3.12.*", pytorch = "*", torchvision = "*", scikit-learn = "*", joblib = "*", rasterio = "*", geopandas = "*", shapely = "*", pyproj = "*", opencv = "*", scipy = "*", pandas = "*", matplotlib-base = "*", pillow = "*", requests = "*", onnxruntime = "*", earthengine-api = "*" }
+pypi-dependencies = { ultralytics = "*", sahi = "*", segmentation-models-pytorch = "*", motmetrics = "*" }
 
 [environments]
 default = { features = ["test"], solve-group = "gui" }

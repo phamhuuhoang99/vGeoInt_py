@@ -13,3 +13,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 timeout = 60
+# Real model runs: `pixi run pytest -m slow`
+markers = ["slow: runs a real AI model in the ai environment (minutes)"]
+addopts = "-m \"not slow\""
