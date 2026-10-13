@@ -27,6 +27,7 @@ check-env = { cmd = "python tools/check_env.py", depends-on = ["build-resources"
 [feature.test.dependencies]
 pytest = "*"
 pytest-qt = "*"
+pytest-timeout = "*"
 
 [feature.test.tasks]
 test = "pytest -q"

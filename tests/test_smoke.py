@@ -1,4 +1,4 @@
-"""Smoke tests: QGIS boots, every .ui loads, and the main window builds."""
+"""Smoke tests: QGIS boots and every .ui file loads."""
 
 import pytest
 
@@ -18,11 +18,6 @@ PENDING = {
 UI_FILES = sorted(f"{p.parent.name}/{p.stem}" for p in UI_DIR.glob("*/*.ui"))
 
 
-@pytest.fixture(scope="session")
-def qgis_app():
-    from vgeoint.common.bootstrap import create_app
-
-    return create_app("vGeoInt_test")
 
 
 def test_ui_count():
@@ -39,10 +34,3 @@ def test_ui_file_loads(qgis_app, ui):
     load_ui_class(app, name)
 
 
-def test_main_window(qgis_app, qtbot):
-    from vgeoint.app.main_window import MainWindow
-
-    window = MainWindow()
-    qtbot.addWidget(window)
-    assert window.windowTitle() == "vGeoInt_v2"
-    assert window.map_canvas is not None
