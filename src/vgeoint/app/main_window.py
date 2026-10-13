@@ -209,7 +209,19 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
 
         self.save_settings()
         super().closeEvent(event)
+        self.disconnect_project_signals()
         self.delete_map_tools()
+
+    def disconnect_project_signals(self):
+        """QgsProject is a singleton that outlives this window; drop our connections to it."""
+        for signal, slot in (
+            (self.project.crsChanged, self.main_controller.update_crs),
+            (self.project.annotationManager().annotationAdded, self.annotation_created),
+        ):
+            try:
+                signal.disconnect(slot)
+            except TypeError:
+                pass  # already disconnected
 
     def delete_map_tools(self):
         """Delete map tools while the canvas and CAD dock still exist (the C++ destructor did the same).

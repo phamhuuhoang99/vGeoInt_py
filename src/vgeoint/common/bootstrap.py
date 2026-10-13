@@ -4,6 +4,7 @@ import os
 import sys
 from pathlib import Path
 
+from osgeo import gdal
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QResource
 
@@ -23,6 +24,8 @@ def register_resources() -> None:
 
 
 def create_app(app_name: str, gui: bool = True) -> QgsApplication:
+    # Ported code checks GDAL return values (None) like the C++ app; keep that mode explicitly.
+    gdal.DontUseExceptions()
     QgsApplication.setPrefixPath(_qgis_prefix(), True)
     # QGIS 4 / PyQt6 bindings take argv as bytes.
     app = QgsApplication([a.encode() for a in sys.argv], gui)
