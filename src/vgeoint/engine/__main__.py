@@ -1,14 +1,25 @@
-"""vGeoEngine — ported in phase 6."""
+"""vGeoEngine entry point (port of vGeoEngine/main.cpp)."""
 
 import sys
 
-from qgis.PyQt.QtWidgets import QMainWindow
+from qgis.core import QgsApplication
 
-from vgeoint.common.bootstrap import create_app
+from vgeoint.common.bootstrap import create_app, install_file_log
 from vgeoint.common.defines import ENGINE_NAME
 
-app = create_app(ENGINE_NAME)
-window = QMainWindow()
-window.setWindowTitle(ENGINE_NAME)
-window.show()
-sys.exit(app.exec())
+
+def main() -> int:
+    app = create_app(ENGINE_NAME)
+    install_file_log(ENGINE_NAME)
+
+    from vgeoint.engine.main_window import MainWindow
+
+    window = MainWindow()
+    window.show()
+    result = app.exec()
+    QgsApplication.exitQgis()
+    return result
+
+
+if __name__ == "__main__":
+    sys.exit(main())

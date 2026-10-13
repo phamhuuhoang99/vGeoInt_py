@@ -113,15 +113,19 @@ def postgis_server():
         timeout=600,
     ).stdout.strip()
     try:
-        deadline = time.time() + 120
-        # The image restarts postgres once after initdb; wait for a real query to succeed.
-        while _docker("exec", container, "psql", "-U", "postgres", "-c", "select 1", check=False).returncode != 0:
+        # The image runs its init scripts on a temporary server, then restarts postgres: wait until
+        # the final server has logged "ready" twice and answers queries 3 times in a row.
+        deadline = time.time() + 180
+        ok = 0
+        while ok < 3:
             if time.time() > deadline:
                 raise RuntimeError("PostGIS container did not start")
-            time.sleep(1)
-        time.sleep(2)
-        while _docker("exec", container, "psql", "-U", "postgres", "-c", "select 1", check=False).returncode != 0:
-            time.sleep(1)
+            out = _docker("logs", container, check=False)
+            logs = out.stdout + out.stderr
+            ready = logs.count("database system is ready to accept connections") >= 2
+            up = ready and _docker("exec", container, "psql", "-U", "postgres", "-c", "select 1", check=False).returncode == 0
+            ok = ok + 1 if up else 0
+            time.sleep(0.5)
         yield container, "127.0.0.1", port, TEST_DB_PASSWORD
     finally:
         _docker("rm", "-f", container, check=False)

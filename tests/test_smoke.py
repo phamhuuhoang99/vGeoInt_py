@@ -5,13 +5,7 @@ import pytest
 from vgeoint.common.paths import UI_DIR
 
 # .ui files whose promoted custom widgets are not ported yet; shrink this set phase by phase.
-PENDING = {
-    "engine/DatabaseWidget",  # phase 6
-    "engine/MainWindow",
-    "engine/MediaInputWidget",
-    "engine/MediaViewerWidget",
-    "engine/SearchingWidget",
-}
+PENDING: set[str] = set()
 
 UI_FILES = sorted(f"{p.parent.name}/{p.stem}" for p in UI_DIR.glob("*/*.ui"))
 
