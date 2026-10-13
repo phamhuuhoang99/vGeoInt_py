@@ -232,3 +232,74 @@ def test_double_click_finishes_line_and_polygon(window, monkeypatch, geom, pts, 
     QTest.mouseClick(vp, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, QPoint(x + 10, y + 10))
     assert layer.featureCount() == (2 if geom == "Line" or len(pts) >= 3 else 1)
     assert layer.geometryType() == (Qgis.GeometryType.Line if geom == "Line" else Qgis.GeometryType.Polygon)
+
+
+def test_cursor_tool_selects_moves_edits_and_deletes_annotations(window, monkeypatch):
+    """The arrow tool picks annotations (select, drag, double-click edit, Delete) without creating any."""
+    from qgis.core import QgsProject
+    from qgis.PyQt.QtCore import QEvent, QPoint, Qt
+    from qgis.PyQt.QtTest import QTest
+    from qgis.PyQt.QtWidgets import QDialog
+
+    from vgeoint.app.dialogs.text_annotation import TextAnnotationDialog
+
+    canvas, vp = window.map_canvas, window.map_canvas.viewport()
+    # create one text annotation with its frame around (300, 155) (ref point 300,200; offset -40,-60; 80x30)
+    window.tool_add_text_annotation.canvasPressEvent(_mouse(canvas, QEvent.Type.MouseButtonPress, 300, 200, Qt.MouseButton.LeftButton))
+    manager = QgsProject.instance().annotationManager()
+    anno = manager.annotations()[0]
+    canvas.scene().clearSelection()
+
+    window.menu_bar_.cursor_click_act.trigger()
+    assert canvas.mapTool() is window.tool_identify_feature
+    L = Qt.MouseButton.LeftButton
+
+    QTest.mouseClick(vp, L, Qt.KeyboardModifier.NoModifier, QPoint(5, 5))  # empty: no new annotation
+    assert len(manager.annotations()) == 1
+
+    QTest.mouseClick(vp, L, Qt.KeyboardModifier.NoModifier, QPoint(300, 155))  # click the frame: selected
+    item = canvas.annotationItems()[0]
+    assert item.isSelected()
+
+    offset = anno.frameOffsetFromReferencePointMm()
+    QTest.mousePress(vp, L, Qt.KeyboardModifier.NoModifier, QPoint(300, 155))
+    for i in range(1, 6):
+        QTest.mouseMove(vp, QPoint(300 + 8 * i, 155 + 6 * i))
+    QTest.mouseRelease(vp, L, Qt.KeyboardModifier.NoModifier, QPoint(340, 185))
+    assert anno.frameOffsetFromReferencePointMm() != offset  # frame dragged
+
+    opened = []
+    monkeypatch.setattr(QDialog, "exec", lambda self: opened.append(type(self)) or 0)
+    window.tool_identify_feature.canvasDoubleClickEvent(
+        _mouse(canvas, QEvent.Type.MouseButtonDblClick, 340, 185, Qt.MouseButton.LeftButton)
+    )
+    assert opened == [TextAnnotationDialog]
+
+    QTest.mouseClick(vp, L, Qt.KeyboardModifier.NoModifier, QPoint(5, 5))  # click away: deselects
+    assert not item.isSelected()
+    QTest.mouseClick(vp, L, Qt.KeyboardModifier.NoModifier, QPoint(340, 185))
+    QTest.keyClick(vp, Qt.Key.Key_Delete)
+    assert manager.annotations() == []
+
+
+def test_cursor_tool_still_identifies_vector_features(window, qtbot):
+    from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsRectangle, QgsVectorLayer
+    from qgis.PyQt.QtCore import QPoint, Qt
+    from qgis.PyQt.QtTest import QTest
+
+    layer = QgsVectorLayer("Point?crs=EPSG:3857", "pts", "memory")
+    f = QgsFeature()
+    f.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(50, 50)))
+    layer.dataProvider().addFeature(f)
+    window.project.setCrs(layer.crs())
+    window.main_controller.vector_model.add_vector_layer(layer)
+    canvas = window.map_canvas
+    canvas.setDestinationCrs(layer.crs())
+    canvas.setExtent(QgsRectangle(0, 0, 100, 100))
+    window.layer_tree_map_canvas_bridge.setCanvasLayers()
+    window.menu_bar_.cursor_click_act.trigger()
+    p = canvas.getCoordinateTransform().transform(QgsPointXY(50, 50))
+    with qtbot.waitSignal(window.tool_identify_feature.featureIdentified, timeout=3000):
+        QTest.mouseClick(canvas.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                         QPoint(round(p.x()), round(p.y())))
+    assert window.rubber_band is not None

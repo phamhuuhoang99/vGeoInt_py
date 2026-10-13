@@ -24,7 +24,6 @@ from qgis.gui import (
     QgsMapCanvas,
     QgsMapCanvasAnnotationItem,
     QgsMapOverviewCanvas,
-    QgsMapToolIdentifyFeature,
     QgsMapToolPan,
     QgsMapToolZoom,
     QgsMessageBar,
@@ -53,6 +52,7 @@ from vgeoint.app.create_features_panel import CreateFeaturesPanel
 from vgeoint.app.layer_panel_menu import LayerPanelMenu
 from vgeoint.app.main_controller import MainController
 from vgeoint.app.maptools.add_feature import EditAttributeDialog
+from vgeoint.app.maptools.cursor_tool import CursorTool
 from vgeoint.app.maptools.edit_tools import MoveFeatureTool, SelectFeatureTool, VertexEditTool
 from vgeoint.app.maptools.measure import MeasureTool
 from vgeoint.app.menu_bar import MenuBar
@@ -238,6 +238,9 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             if tool is not None and not sip.isdeleted(tool):
                 if isinstance(tool, MeasureTool):
                     tool.dialog.close()
+                helper = getattr(tool, "annotations", None)  # CursorTool's annotation picker
+                if helper is not None and not sip.isdeleted(helper):
+                    sip.delete(helper)
                 sip.delete(tool)
             setattr(self, name, None)
 
@@ -466,7 +469,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         self.tool_add_point_feature = maptools.create_add_feature_tool(canvas, cad, "Point", bar)
         self.tool_add_line_feature = maptools.create_add_feature_tool(canvas, cad, "Line", bar)
         self.tool_add_polygon_feature = maptools.create_add_feature_tool(canvas, cad, "Polygon", bar)
-        self.tool_identify_feature = QgsMapToolIdentifyFeature(canvas)
+        # Identify tool that can also select / move / edit annotations (see maptools/cursor_tool.py).
+        self.tool_identify_feature = CursorTool(canvas)
         # Set cursor to default pointer instead of cross cursor
         self.tool_identify_feature.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
         self.tool_identify_feature.setAction(mb.cursor_click_act)
