@@ -29,6 +29,12 @@ if sys.platform.startswith('win'):
 
 warnings.filterwarnings('ignore')
 
+try:
+    from vgeoint.ai.scripts._events import result
+except ImportError:  # stand-alone run outside the app
+    def result(*a, **k):
+        pass
+
 def log_progress(message, flush=True):
     """Print progress message with safe encoding handling"""
     try:
@@ -399,7 +405,8 @@ def main():
 
     if classification_result is not None:
         log_progress("\nQuy trình phân loại hoàn tất. Kết quả được lưu vào tệp TIFF.")
-        
+        colored_output_path = None
+
         # Tạo ảnh phân loại với style unique values nếu được yêu cầu
         if args.colored:
             # Tải ảnh đã phân loại để lấy profile
@@ -415,6 +422,8 @@ def main():
                     log_progress("2: Thực vật (Xanh lá nhạt)")
                     log_progress("3: Giao thông (Vàng nhạt)")
                     log_progress("4: Thủy hệ (Xanh dương nhạt)")
+        result(output=os.path.abspath(args.output),
+               colored=os.path.abspath(colored_output_path) if colored_output_path else None)
     else:
         log_error("\nQuy trình phân loại gặp lỗi.")
         sys.exit(1)

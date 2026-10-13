@@ -29,6 +29,14 @@ if sys.platform.startswith("win"):
 
 warnings.filterwarnings("ignore")
 
+# Machine-readable events for vGeoInt (see vgeoint.ai.runner); no-ops when run stand-alone.
+try:
+    from vgeoint.ai.scripts._events import result
+except ImportError:
+
+    def result(**data):
+        pass
+
 
 def log_progress(message, flush=True):
     """Print progress message with safe encoding handling"""
@@ -828,6 +836,17 @@ def main():
     log_progress(f" 2. File toàn tuyến (vận tốc, hướng tổng quát): {tracks_geojson}")
     log_progress(
         f" 3. File từng đoạn (vận tốc, góc phương vị & hướng): {segments_geojson}"
+    )
+
+    result(
+        avg_speed_kmh=round(overall_avg_speed_kmh, 2),
+        tracks=len(trajectory_rows),
+        points=len(all_detections),
+        segments=len(segment_rows),
+        direction=dom_dir_str,
+        points_file=points_geojson,
+        tracks_file=tracks_geojson,
+        segments_file=segments_geojson,
     )
 
     elapsed = time.time() - start_time

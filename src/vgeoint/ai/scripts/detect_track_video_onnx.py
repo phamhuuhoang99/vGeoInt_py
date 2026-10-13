@@ -15,6 +15,17 @@ except ImportError:
     print("[ERROR] onnxruntime not installed. Please run: pip install onnxruntime (or onnxruntime-gpu)")
     sys.exit(1)
 
+# Machine-readable events for vGeoInt (see vgeoint.ai.runner); no-ops when run stand-alone.
+try:
+    from vgeoint.ai.scripts._events import emit, result
+except ImportError:
+
+    def emit(*a, **k):
+        pass
+
+    def result(**data):
+        pass
+
 # Reduce chance of OpenMP duplicate runtime crashes on Windows.
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
@@ -195,6 +206,7 @@ def main() -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(out_path), fourcc, fps if fps > 0 else 25.0, (width, height))
+    total_frames = args.max_frames if args.max_frames > 0 else int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     frame_idx = 0
     while True:
@@ -248,10 +260,13 @@ def main() -> int:
 
         if frame_idx % 50 == 0:
             print(f"processed {frame_idx} frames")
+            value = 100.0 * frame_idx / total_frames if total_frames > 0 else 0.0
+            emit("progress", value=round(min(value, 100.0), 1), message=f"processed {frame_idx} frames", frame=frame_idx)
 
     cap.release()
     writer.release()
     print(f"Done. Output: {out_path}")
+    result(output=str(out_path), frames=min(frame_idx, args.max_frames) if args.max_frames > 0 else frame_idx)
     return 0
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ import cv2
 import os
 import sys
 import argparse
+import time
 from PIL import Image
 import matplotlib.pyplot as plt
 
@@ -35,6 +36,16 @@ try:
     RASTERIO_AVAILABLE = True
 except ImportError:
     RASTERIO_AVAILABLE = False
+
+# Machine-readable events for vGeoInt (no-ops when run outside the app).
+try:
+    from vgeoint.ai.scripts._events import result
+except ImportError:
+    def result(**kwargs):
+        pass
+
+# Filled during processing, reported in the final result event.
+_STATS = {"seconds": None}
 
 # Set UTF-8 encoding for Windows console
 
@@ -253,8 +264,10 @@ def predict_and_visualize(image_path, model, class_names, class_rgb, device="cpu
 
     # 2. Predict
     log_progress("Running model inference...")
+    start_time = time.time()
     with torch.no_grad():
         pred = model(image_input)  # [1, C, H, W]
+    _STATS["seconds"] = round(time.time() - start_time, 2)
     log_progress("Model inference completed successfully")
 
     # 3. Process prediction
@@ -346,6 +359,7 @@ def main():
         if success:
             log_progress("Prediction completed successfully!")
             log_progress(f"Segmentation mask saved to: {args.output}")
+            result(output=args.output, seconds=_STATS["seconds"])
         else:
             log_error("Prediction failed!")
             sys.exit(1)

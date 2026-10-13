@@ -29,6 +29,14 @@ if sys.platform.startswith("win"):
 
 warnings.filterwarnings("ignore")
 
+# Machine-readable events for vGeoInt (see vgeoint.ai.runner); no-ops when run stand-alone.
+try:
+    from vgeoint.ai.scripts._events import result
+except ImportError:
+
+    def result(**data):
+        pass
+
 
 def log_progress(message, flush=True):
     """Print progress message with safe encoding handling"""
@@ -656,6 +664,7 @@ def export_spatial_outputs(tracks, all_centroids_dict, crs_str, output_dir):
     log_progress(f"  2. File tam thuyen (Points): {points_geojson}")
     log_progress(f"  Total trajectories tracked: {len(tracks)}")
     log_progress(f"  Total ship points: {len(points_geom)}")
+    result(lines=lines_geojson, points=points_geojson, tracks=len(tracks), ship_points=len(points_geom))
 
 
 def main():

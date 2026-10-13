@@ -55,6 +55,13 @@ def safe_builtin_print(*args, **kwargs):
         original_print(*safe_args, **kwargs)
 
 builtins.print = safe_builtin_print
+
+try:
+    from vgeoint.ai.scripts._events import result
+except ImportError:  # stand-alone run outside the app
+    def result(*a, **k):
+        pass
+
 import argparse
 import numpy as np
 
@@ -1084,6 +1091,9 @@ def main():
             detector.print_change_matrix()
 
         print(f"\n✅ Hoàn thành! Kết quả chính lưu tại: {args.output}")
+        # Replaces the COLORED_OUTPUT_PATH / COMBINED_TIFF_PATH lines parsed by the C++ dialog
+        result(output=args.output, colored=colored_output_path, combined=combined_tiff_path,
+               statistics=stats_path if args.stats else None)
 
     except Exception as e:
         print(f"*** LOI: {str(e)}")

@@ -17,9 +17,9 @@ def emit(event_type: str, **data):
     sys.stdout.flush()
 
 
-def progress(value: float, message: str = ""):
-    """value in percent (0-100)."""
-    emit("progress", value=value, message=message)
+def progress(value: float, message: str = "", **data):
+    """value in percent (0-100); extra fields (e.g. frame=12) are passed through."""
+    emit("progress", value=value, message=message, **data)
 
 
 def result(**data):

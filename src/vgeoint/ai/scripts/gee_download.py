@@ -12,6 +12,12 @@ import requests
 from datetime import datetime
 import ee
 
+try:
+    from vgeoint.ai.scripts._events import result
+except ImportError:  # stand-alone run outside the app
+    def result(*a, **k):
+        pass
+
 
 def log_progress(message):
     """Log progress message with timestamp"""
@@ -173,6 +179,7 @@ def main():
             log_progress(
                 f"[OK] Completed! File downloaded successfully to: {downloaded_file}"
             )
+            result(output=os.path.abspath(downloaded_file))
         except Exception as e:
             log_error(f"[ERROR] Error downloading image: {e}")
             log_error("[ERROR] Please check information and try again")

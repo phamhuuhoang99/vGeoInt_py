@@ -9,8 +9,63 @@ if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace', line_buffering=True)
 
+try:
+    from vgeoint.ai.scripts._events import result as emit_result
+except ImportError:  # stand-alone run outside the app
+    def emit_result(*a, **k):
+        pass
+
+DEFAULT_OTB_EXE = r"C:\OTB-9.1.0-Win64\bin\otbcli_Pansharpening.bat"
+OTB_LAUNCHER = "otbcli_Pansharpening.bat" if sys.platform == "win32" else "otbcli_Pansharpening"
+
+
+def _config_file():
+    try:
+        from vgeoint.common.paths import CONFIG_DIR
+    except ImportError:
+        from pathlib import Path
+        CONFIG_DIR = Path(__file__).resolve().parents[4] / "config"
+    return os.path.join(str(CONFIG_DIR), "image_blending_config.json")
+
+
+def find_otb_executable():
+    """OTB launcher: $VGEOINT_OTB_DIR (OTB install root), config/image_blending_config.json "otb_path",
+    the historical default install, then PATH. Returns the first that exists (else the first candidate)."""
+    import json
+    import shutil
+
+    candidates = []
+    otb_dir = os.environ.get("VGEOINT_OTB_DIR")
+    if otb_dir:
+        candidates.append(os.path.join(otb_dir, "bin", OTB_LAUNCHER))
+    try:
+        with open(_config_file(), encoding="utf-8") as f:
+            configured = json.load(f).get("otb_path")
+        if configured:
+            candidates.append(configured)
+    except (OSError, ValueError):
+        pass
+    candidates.append(DEFAULT_OTB_EXE)
+    found = shutil.which(OTB_LAUNCHER)
+    if found:
+        candidates.append(found)
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return candidates[0]
+
+
+def otb_environment():
+    """Environment for OTB without this Python env's GDAL/PROJ settings: otbenv.bat sets GDAL_DATA and
+    PROJ_LIB but not PROJ_DATA, which PROJ prefers and would point OTB at an incompatible proj.db."""
+    env = dict(os.environ)
+    for key in ("GDAL_DATA", "GDAL_DRIVER_PATH", "PROJ_LIB", "PROJ_DATA", "PYTHONPATH", "PYTHONHOME"):
+        env.pop(key, None)
+    return env
+
+
 def run_otb_pansharpening(pan_path, ms_path, output_path, method, **params):
-    otb_exe = r"C:\OTB-9.1.0-Win64\bin\otbcli_Pansharpening.bat"
+    otb_exe = find_otb_executable()
 
     cmd = [
         otb_exe,
@@ -56,7 +111,8 @@ def run_otb_pansharpening(pan_path, ms_path, output_path, method, **params):
 
     print("Starting OTB process...", flush=True)
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, encoding='utf-8', errors='replace')
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, encoding='utf-8', errors='replace',
+                                env=otb_environment())
 
         print(f"OTB process finished with return code: {result.returncode}", flush=True)
         
@@ -143,4 +199,6 @@ if __name__ == "__main__":
 
     success = run_otb_pansharpening(pan_path, ms_path, output_path, method, **params)
     print(f"=== Script finished with success={success} ===", flush=True)
+    if success:
+        emit_result(output=os.path.abspath(output_path))
     sys.exit(0 if success else 1)

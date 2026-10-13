@@ -17,6 +17,16 @@ import warnings
 import time
 import locale
 
+# Machine-readable events for vGeoInt (no-ops when run outside the app).
+try:
+    from vgeoint.ai.scripts._events import result
+except ImportError:
+    def result(**kwargs):
+        pass
+
+# Filled during processing, reported in the final result event.
+_STATS = {"seconds": None}
+
 # Set UTF-8 encoding for Windows console
 if sys.platform.startswith('win'):
     try:
@@ -206,6 +216,7 @@ def detect_ships(model, image_path, confidence_threshold=0.5):
         try:
             results = model(image_path, conf=confidence_threshold, verbose=False)
             inference_time = time.time() - start_time
+            _STATS["seconds"] = round(inference_time, 2)
             log_progress(f"[OK] Inference completed in {inference_time:.2f} seconds")
         except Exception as inference_error:
             log_error(f"Inference failed: {inference_error}")
@@ -519,15 +530,19 @@ def main():
                 log_error(f"Error copying image: {e}")
 
         log_progress("Ship detection completed (no detections)")
+        result(output=args.output, count=0, seconds=_STATS["seconds"])
         sys.exit(0)
 
     # Generate output based on input type
     log_progress("Generating output file...")
     if is_geotiff(args.input):
         create_shapefile(detections, args.input, args.output)
+        kind = "shapefile"
     else:
         create_annotated_image(detections, args.input, args.output)
+        kind = "image"
 
+    result(output=args.output, count=len(detections), seconds=_STATS["seconds"], kind=kind)
     log_progress("Ship detection completed successfully!")
     log_progress("=== Process Finished ===")
 

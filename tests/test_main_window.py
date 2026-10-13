@@ -74,5 +74,6 @@ def test_add_vector_and_stretch_warning(window, tmp_path):
 
 
 def test_unported_dialog_shows_message(window):
-    window.main_controller.ship_detection()
+    # A dialog module that does not exist (yet) shows a notice instead of failing.
+    window.main_controller._std_dialog("does_not_exist", "MissingDialog")
     assert window.message_bar.currentItem() is not None
