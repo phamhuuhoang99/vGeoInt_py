@@ -541,7 +541,7 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         vector_menu.addAction(start_editing_act)
 
         # ArcGIS-style "Create Features": opens the target-layer panel; choosing a layer there edits it.
-        self.create_features_act = QAction(get_icon("CreateVector.svg"), "Tạo đối tượng", tb)
+        self.create_features_act = QAction(get_icon("CreateFeatures.png"), "Tạo đối tượng", tb)
         self.create_features_act.setCheckable(True)
         self.create_features_act.setToolTip("Tạo đối tượng: chọn lớp cần vẽ / sửa")
         tb.addAction(self.create_features_act)

@@ -350,3 +350,10 @@ def test_panel_buttons_disabled_without_edit_session(window):
     window.edit_actions["draw"].trigger()
     assert window.vector_layer_editing() is None
     assert not window.edit_actions["draw"].isEnabled() and not window.edit_actions["draw"].isChecked()
+
+
+def test_create_features_icon(window):
+    from qgis.PyQt.QtCore import QFile
+
+    assert QFile.exists(":/myicon/CreateFeatures.png")
+    assert not window.create_features_act.icon().isNull()
