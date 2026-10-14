@@ -1,0 +1,25 @@
+# PostgreSQL + PostGIS for vGeoCatalog / vGeoEngine: `pixi run db-up` (creates .env with a password first).
+# Data lives in the "vgeoint-pgdata" volume; the databases are created from sql/ on the first start only.
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: vgeoint-postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${VGEOINT_DB_PASSWORD:?set VGEOINT_DB_PASSWORD in .env (pixi run db-up does it)}
+    ports:
+      - "127.0.0.1:${VGEOINT_DB_PORT:-5432}:5432"
+    volumes:
+      - vgeoint-pgdata:/var/lib/postgresql/data
+      - ./sql:/sql:ro
+      - ./docker/initdb/20_vgeoint.sh:/docker-entrypoint-initdb.d/20_vgeoint.sh:ro
+    healthcheck:
+      # TCP: during the first-start init the temporary server only listens on the unix socket.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d vGeoEngine"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  vgeoint-pgdata:

@@ -2,8 +2,9 @@
 
 The C++ apps hardcoded host/port/database/user/password in BDefines.h. Here they come from, in order:
 environment variables VGEOINT_DB_HOST / _PORT / _NAME / _USER / _PASSWORD, then the app's settings
-under "Database/...", then the old defaults (except the password, which has no default; the user is
-asked for it once and it is stored in the app settings).
+under "Database/...", then the same VGEOINT_DB_* keys in the .env file next to the code (written by
+`pixi run db-up` for the Docker server), then the old defaults (except the password, which has no default;
+the user is asked for it once and it is stored in the app settings).
 """
 
 import os
@@ -13,6 +14,7 @@ from qgis.core import QgsDataSourceUri
 from qgis.PyQt.QtSql import QSqlDatabase
 from qgis.PyQt.QtWidgets import QInputDialog, QLineEdit, QWidget
 
+from vgeoint.common.paths import ROOT
 from vgeoint.common.utils import app_settings
 
 
@@ -25,12 +27,27 @@ class DbConfig:
     password: str = ""
 
 
+def read_env_file(path=None) -> dict[str, str]:
+    """KEY=VALUE lines of .env (blank lines and # comments ignored); {} when there is no file."""
+    path = path or ROOT / ".env"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {}
+    pairs = (line.split("=", 1) for line in lines if "=" in line and not line.lstrip().startswith("#"))
+    return {k.strip(): v.strip().strip('"').strip("'") for k, v in pairs}
+
+
 def db_config(app_name: str, default_db: str) -> DbConfig:
     s = app_settings(app_name)
+    env_file = read_env_file()
 
     def value(key: str, default):
-        env = os.environ.get(f"VGEOINT_DB_{key.upper()}")
-        return env if env is not None else s.value(f"Database/{key}", default)
+        name = f"VGEOINT_DB_{key.upper()}"
+        env = os.environ.get(name)
+        if env is not None:
+            return env
+        return s.value(f"Database/{key}", env_file.get(name, default))
 
     return DbConfig(
         host=str(value("Host", "localhost")),

@@ -86,7 +86,27 @@ pixi install -e ai
 
 ### 5. Cơ sở dữ liệu cho vGeoCatalog / vGeoEngine (tuỳ chọn)
 
-App chính không cần database. vGeoCatalog và vGeoEngine cần PostgreSQL + PostGIS:
+App chính không cần database. vGeoCatalog và vGeoEngine cần PostgreSQL + PostGIS.
+
+**Cách 1 (khuyên dùng): Docker.** Cài [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+(`winget install --id Docker.DockerDesktop -e`), mở Docker Desktop, rồi trong thư mục `vGeoInt_py`:
+
+```powershell
+pixi run db-up      # lần đầu: tạo mật khẩu ngẫu nhiên trong .env, tải image postgis/postgis:16-3.4,
+                    # tạo database vGeoCatalog + vGeoEngine từ sql\ (~1 phút)
+pixi run catalog
+pixi run engine
+pixi run db-down    # dừng server (dữ liệu vẫn giữ trong volume vgeoint-pgdata)
+```
+
+- Server chạy ở `127.0.0.1:5432`, container `vgeoint-postgis`, tự khởi động lại cùng Docker Desktop.
+  Cổng 5432 đã bị chiếm (đang cài PostgreSQL khác) thì thêm `VGEOINT_DB_PORT=5433` vào `.env` trước khi
+  `pixi run db-up`.
+- App đọc mật khẩu từ `.env` (không có trong git) nên không hỏi mật khẩu. Không xoá file này khi còn dùng
+  volume cũ.
+- Xoá hẳn dữ liệu để tạo lại từ `sql\`: `docker compose down -v` rồi `pixi run db-up`.
+
+**Cách 2: cài PostgreSQL trực tiếp.**
 
 1. Cài PostgreSQL (https://www.postgresql.org/download/windows/), trong Stack Builder chọn thêm
    **PostGIS**. Nhớ mật khẩu user `postgres`.
@@ -108,10 +128,13 @@ App chính không cần database. vGeoCatalog và vGeoEngine cần PostgreSQL + 
    }
    ```
 
-   vGeoEngine có sẵn tài khoản `admin` (mật khẩu như app cũ).
-3. Chạy `pixi run catalog` / `pixi run engine`: lần đầu app hỏi mật khẩu database và lưu lại. Server khác
-   `localhost:5432` / user khác `postgres` thì đặt biến môi trường `VGEOINT_DB_HOST`, `VGEOINT_DB_PORT`,
-   `VGEOINT_DB_USER`, `VGEOINT_DB_PASSWORD` (`VGEOINT_DB_NAME` để đổi tên database).
+3. Chạy `pixi run catalog` / `pixi run engine`: lần đầu app hỏi mật khẩu database và lưu lại.
+
+vGeoEngine có sẵn tài khoản `admin` (mật khẩu như app cũ).
+
+Thứ tự app lấy thông tin kết nối: biến môi trường `VGEOINT_DB_HOST`, `VGEOINT_DB_PORT`, `VGEOINT_DB_NAME`,
+`VGEOINT_DB_USER`, `VGEOINT_DB_PASSWORD` → mật khẩu đã nhập trong app → file `.env` → mặc định
+(`localhost:5432`, user `postgres`).
 
 Test database (`pixi run test`) tự dựng PostGIS trong **Docker** (`postgis/postgis:16-3.4`); không có
 Docker Desktop thì các test đó bị bỏ qua.

@@ -22,6 +22,8 @@ catalog = "python -m vgeoint.catalog"
 engine = "python -m vgeoint.engine"
 build-resources = "python tools/build_resources.py"
 check-env = { cmd = "python tools/check_env.py", depends-on = ["build-resources"] }
+db-up = "python tools/db_docker.py up"
+db-down = "python tools/db_docker.py down"
 
 # ---------------------------------------------------------------- tests
 [feature.test.dependencies]
