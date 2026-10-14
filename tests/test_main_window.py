@@ -211,12 +211,16 @@ def test_create_features_picks_and_edits_layer_without_pencil(window):
     assert layers["roads"].isEditable() and window.toggle_editing_act.isChecked()
     assert window.map_canvas.mapTool() is window.tool_add_line_feature
     assert panel.item_for(layers["roads"]).text() == "roads (đang sửa)"
-    assert all(a.isEnabled() for a in window.edit_actions.values())
-
     window.toggle_editing_act.trigger()  # the pencil still stops editing
     assert not layers["roads"].isEditable()
     assert panel.isVisibleTo(window) and window.create_features_act.isEnabled()  # panel stays usable
-    assert not any(a.isEnabled() for a in window.edit_actions.values())
+
+    # After stopping, the panel buttons still work on the layer picked in the list
+    window.edit_actions["draw"].trigger()
+    assert layers["roads"].isEditable() and window.map_canvas.mapTool() is window.tool_add_line_feature
+    window.toggle_editing_act.trigger()
+    window.edit_actions["select"].trigger()
+    assert layers["roads"].isEditable() and window.map_canvas.mapTool() is window.tool_select_features
 
 
 @pytest.mark.parametrize("name, tool_attr", [
@@ -303,3 +307,12 @@ def test_vector_toolbar_without_identify_and_delete_buttons(window):
     tb = window.findChild(QToolBar, "VectorToolBar")
     texts = [a.text() for a in tb.actions()] + [a.text() for a in window.menu_bar_.vector_menu.actions()]
     assert "Chọn đối tượng" not in texts and "Xóa đối tượng" not in texts
+
+
+def test_panel_buttons_without_picked_layer_ask_to_pick(window):
+    _layers(window)
+    window.create_features_panel.layer_list.setCurrentItem(None)
+    window.edit_actions["draw"].trigger()
+    assert window.vector_layer_editing() is None
+    assert not window.edit_actions["draw"].isChecked()
+    assert "Hãy chọn lớp" in window.message_bar.currentItem().text()

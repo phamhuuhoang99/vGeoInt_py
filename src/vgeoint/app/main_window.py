@@ -633,9 +633,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         # "Tạo đối tượng" is always available: picking a layer in its panel starts editing that layer,
         # so there is no separate "select a layer, then start editing" step. The list follows the project.
         self.create_features_panel.refresh(layer)
-        # Panel modify actions work on the edited layer only.
-        for act in getattr(self, "edit_actions", {}).values():
-            act.setEnabled(layer is not None)
+        # Panel actions stay enabled: without an edit session they start one on the layer picked in
+        # the panel (see _target_layer), so stopping editing never leaves dead buttons.
         edit_tools = [getattr(self, n, None) for n in ("tool_select_features", "tool_vertex_edit", "tool_move_feature")]
         for tool in filter(None, edit_tools):
             tool.set_layer(layer)
@@ -650,25 +649,40 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
 
     def start_creating(self, layer: QgsVectorLayer):
         """Create Features: make `layer` the edited layer and activate the tool for its geometry type."""
-        title = "Tạo đối tượng"
         tool = self.add_tools.get(layer.geometryType())
         if tool is None:
-            self._push(title, "Lớp không có hình học (điểm/đường/vùng)", Qgis.MessageLevel.Warning)
+            self._push("Tạo đối tượng", "Lớp không có hình học (điểm/đường/vùng)", Qgis.MessageLevel.Warning)
             return
+        if self._begin_editing(layer):
+            self.map_canvas.setMapTool(tool)
+
+    def _begin_editing(self, layer: QgsVectorLayer) -> bool:
+        """Make `layer` the edited layer (only one at a time) and the current layer. False if refused."""
         current = self.vector_layer_editing()
         if current is not None and current.id() != layer.id():
             # Only one layer is edited at a time: close the current session first (asks about changes).
             self._stop_editing()
             if current.isEditable():
                 self.sync_editing_state()
-                return  # Cancel: keep editing the current layer
+                return False  # Cancel: keep editing the current layer
         if not layer.isEditable() and not layer.startEditing():
-            self._push(title, f"Không thể mở chỉnh sửa lớp {layer.name()}", Qgis.MessageLevel.Critical)
-            return
+            self._push("Tạo đối tượng", f"Không thể mở chỉnh sửa lớp {layer.name()}", Qgis.MessageLevel.Critical)
+            return False
         self.layer_tree_view.setCurrentLayer(layer)
         self.map_canvas.setCurrentLayer(layer)
-        self.map_canvas.setMapTool(tool)
         self.sync_editing_state()
+        return True
+
+    def _target_layer(self, title: str) -> QgsVectorLayer | None:
+        """The edited layer, or else the layer picked in the "Tạo đối tượng" panel (then edited)."""
+        layer = self.vector_layer_editing()
+        if layer is not None:
+            return layer
+        picked = self.create_features_panel.picked_layer()
+        if picked is None:
+            self._push(title, "Hãy chọn lớp trong bảng Tạo đối tượng", Qgis.MessageLevel.Warning)
+            return None
+        return picked if self._begin_editing(picked) else None
 
     def _watch_layers(self, layers):
         for layer in layers:
@@ -750,7 +764,7 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         return layer
 
     def activate_edit_tool(self, tool):
-        layer = self._edited_layer_or_warn("Chỉnh sửa")
+        layer = self._target_layer("Chỉnh sửa")
         if layer is None:
             if tool.action() is not None:
                 tool.action().setChecked(False)
@@ -760,7 +774,7 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         self.map_canvas.setMapTool(tool)
 
     def _resume_drawing(self):
-        layer = self._edited_layer_or_warn("Vẽ đối tượng mới")
+        layer = self._target_layer("Vẽ đối tượng mới")
         if layer is None:
             self.edit_actions["draw"].setChecked(False)
             return

@@ -54,6 +54,7 @@ class CreateFeaturesPanel(QgsDockWidget):
         layout.addWidget(hint)
         self.setWidget(body)
 
+        self.chosen_layer_id: str | None = None
         self.filter_edit.textChanged.connect(self.apply_filter)
         self.layer_list.itemClicked.connect(self._item_clicked)
 
@@ -95,4 +96,13 @@ class CreateFeaturesPanel(QgsDockWidget):
     def _item_clicked(self, item: QListWidgetItem):
         layer = QgsProject.instance().mapLayer(item.data(LAYER_ID))
         if isinstance(layer, QgsVectorLayer):
+            self.chosen_layer_id = layer.id()
+            self.layer_list.setCurrentItem(item)
             self.layer_chosen.emit(layer)
+
+    def picked_layer(self) -> QgsVectorLayer | None:
+        """The layer last chosen in the list (or the highlighted one), if it still exists."""
+        item = self.layer_list.currentItem()
+        layer_id = item.data(LAYER_ID) if item is not None else self.chosen_layer_id
+        layer = QgsProject.instance().mapLayer(layer_id) if layer_id else None
+        return layer if isinstance(layer, QgsVectorLayer) else None

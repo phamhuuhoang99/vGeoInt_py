@@ -50,14 +50,13 @@ def editing(window):
     return make
 
 
-def test_edit_actions_enabled_only_while_editing(window, editing):
-    assert not any(a.isEnabled() for a in window.edit_actions.values())
-    layer = editing("Point", ["Point (50 50)"])
+def test_edit_actions_always_enabled_and_stop_returns_to_identify(window, editing):
     assert all(a.isEnabled() for a in window.edit_actions.values())
+    layer = editing("Point", ["Point (50 50)"])
     window.edit_actions["select"].trigger()
     assert window.map_canvas.mapTool() is window.tool_select_features
     window.toggle_editing_act.trigger()  # stop editing
-    assert not any(a.isEnabled() for a in window.edit_actions.values())
+    assert all(a.isEnabled() for a in window.edit_actions.values())
     assert window.map_canvas.mapTool() is window.tool_identify_feature
     assert not layer.isEditable()
 
