@@ -540,10 +540,10 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         vector_menu.addSeparator()
         vector_menu.addAction(start_editing_act)
 
-        # ArcGIS-style "Create Features": shown while editing, opens the target-layer panel.
+        # ArcGIS-style "Create Features": opens the target-layer panel; choosing a layer there edits it.
         self.create_features_act = QAction(get_icon("CreateVector.svg"), "Tạo đối tượng", tb)
         self.create_features_act.setCheckable(True)
-        self.create_features_act.setToolTip("Tạo đối tượng: chọn lớp cần thêm")
+        self.create_features_act.setToolTip("Tạo đối tượng: chọn lớp cần vẽ / sửa")
         tb.addAction(self.create_features_act)
         vector_menu.addAction(self.create_features_act)
         self.create_features_panel = CreateFeaturesPanel(self)
@@ -630,11 +630,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             act.setToolTip("Bật chỉnh sửa layer vector đang chọn")
         else:
             act.setToolTip(f"Đang chỉnh sửa: {layer.name()} — bấm để tắt chỉnh sửa")
-        # "Tạo đối tượng" is always on the toolbar but only enabled while editing; leaving edit mode
-        # closes its panel. The panel list follows the project layers.
-        self.create_features_act.setEnabled(layer is not None)
-        if layer is None and not self.create_features_panel.isHidden():
-            self.create_features_panel.hide()
+        # "Tạo đối tượng" is always available: picking a layer in its panel starts editing that layer,
+        # so there is no separate "select a layer, then start editing" step. The list follows the project.
         self.create_features_panel.refresh(layer)
         # Panel modify actions work on the edited layer only.
         for act in getattr(self, "edit_actions", {}).values():

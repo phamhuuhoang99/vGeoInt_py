@@ -194,22 +194,29 @@ def _layers(window):
     return made
 
 
-def test_create_features_button_enabled_only_while_editing(window):
+def test_create_features_picks_and_edits_layer_without_pencil(window):
+    """No "select a layer, then press the pencil" step: picking a layer in the panel edits it."""
     layers = _layers(window)
     panel = window.create_features_panel
-    assert window.create_features_act.isVisible() and not window.create_features_act.isEnabled()
-    window.layer_tree_view.setCurrentLayer(layers["roads"])
-    window.toggle_editing_act.trigger()
-    assert window.create_features_act.isEnabled()
+    assert window.create_features_act.isEnabled() and not window.toggle_editing_act.isChecked()
     window.create_features_act.trigger()
     assert panel.isVisibleTo(window)
     names = [panel.layer_list.item(i).text() for i in range(panel.layer_list.count())]
-    assert names == ["lakes", "roads (đang sửa)", "wells"]
+    assert names == ["lakes", "roads", "wells"]
     panel.filter_edit.setText("wel")
     assert [panel.layer_list.item(i).isHidden() for i in range(3)] == [True, True, False]
-    window.toggle_editing_act.trigger()  # stop editing
-    assert window.create_features_act.isVisible() and not window.create_features_act.isEnabled()
-    assert not panel.isVisibleTo(window) and not window.create_features_act.isChecked()
+    panel.filter_edit.clear()
+
+    panel.layer_list.itemClicked.emit(panel.item_for(layers["roads"]))
+    assert layers["roads"].isEditable() and window.toggle_editing_act.isChecked()
+    assert window.map_canvas.mapTool() is window.tool_add_line_feature
+    assert panel.item_for(layers["roads"]).text() == "roads (đang sửa)"
+    assert all(a.isEnabled() for a in window.edit_actions.values())
+
+    window.toggle_editing_act.trigger()  # the pencil still stops editing
+    assert not layers["roads"].isEditable()
+    assert panel.isVisibleTo(window) and window.create_features_act.isEnabled()  # panel stays usable
+    assert not any(a.isEnabled() for a in window.edit_actions.values())
 
 
 @pytest.mark.parametrize("name, tool_attr", [
