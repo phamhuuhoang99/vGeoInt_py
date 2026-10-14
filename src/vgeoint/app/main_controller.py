@@ -6,9 +6,18 @@ the module; until then the action shows a "not ported yet" message instead of fa
 
 import importlib
 
-from qgis.core import Qgis, QgsRasterLayer, QgsVectorLayer
+from qgis.core import (
+    Qgis,
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsProject,
+    QgsRasterLayer,
+    QgsRectangle,
+    QgsVectorLayer,
+)
 from qgis.PyQt.QtCore import Qt
 
+from vgeoint.app.basemaps import BASEMAPS, add_basemap
 from vgeoint.app.models.image_enhancement_model import ImageEnhancementModel
 from vgeoint.app.models.layer_panel_model import LayerPanelModel
 from vgeoint.app.models.project_model import ProjectModel
@@ -16,6 +25,9 @@ from vgeoint.app.models.raster_model import RasterModel
 from vgeoint.app.models.vector_model import VectorModel
 from vgeoint.app.plugins import RASTER
 from vgeoint.common.utils import message_timeout
+
+WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
+VIET_NAM = QgsRectangle(102.1, 8.2, 109.5, 23.4)
 
 
 class MainController:
@@ -199,6 +211,30 @@ class MainController:
 
     def google_earth_engine(self):
         self._imagery_dialog("google_earth_engine", "GoogleEarthEngineDialog")
+
+    def add_basemap(self, key: str):
+        """Online basemap at the bottom of the layers; on an empty map, zoom to Viet Nam."""
+        mw = self.main_window
+        empty = not mw.map_canvas.layers()
+        layer = add_basemap(key)
+        if layer is None:
+            mw.message_bar.pushMessage(
+                "Ảnh nền", f"Không tải được {BASEMAPS[key].name}", Qgis.MessageLevel.Critical, message_timeout()
+            )
+            return
+        if empty:
+            # Let the bridge put the layer on the canvas first: on the first layer it zooms to the full
+            # extent (the whole world for a tile layer), which would undo this zoom.
+            mw.layer_tree_map_canvas_bridge.setCanvasLayers()
+            transform = QgsCoordinateTransform(WGS84, mw.map_canvas.mapSettings().destinationCrs(), QgsProject.instance())
+            mw.map_canvas.setExtent(transform.transformBoundingBox(VIET_NAM))
+        mw.map_canvas.refresh()
+        mw.message_bar.pushMessage(
+            "Ảnh nền",
+            f"Đã thêm {BASEMAPS[key].name} ({BASEMAPS[key].attribution}): chỉ để xem/số hoá, không lưu ảnh ra file.",
+            Qgis.MessageLevel.Info,
+            message_timeout(),
+        )
 
     def free_imagery(self):
         self._imagery_dialog("free_imagery", "FreeImageryDialog")

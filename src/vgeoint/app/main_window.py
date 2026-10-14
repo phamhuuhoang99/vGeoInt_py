@@ -1144,6 +1144,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         for action, slot in connections.items():
             # Drop the `checked` argument so slots with optional parameters are called with defaults.
             action.triggered.connect(lambda _checked=False, s=slot: s())
+        for key, action in mb.basemap_acts.items():
+            action.triggered.connect(lambda _checked=False, k=key: mc.add_basemap(k))
 
         # Vector menu: highlight the identified feature
         self.tool_identify_feature.featureIdentified[QgsFeature].connect(self._feature_identified)

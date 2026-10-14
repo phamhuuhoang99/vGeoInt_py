@@ -3,6 +3,7 @@
 from qgis.PyQt.QtGui import QAction, QKeySequence
 from qgis.PyQt.QtWidgets import QMenu, QMenuBar
 
+from vgeoint.app.basemaps import BASEMAPS
 from vgeoint.common.utils import get_icon
 
 
@@ -164,6 +165,14 @@ class MenuBar:
         self.free_imagery_act = _action("Earth.svg", "Tải ảnh miễn phí (không cần tài khoản)...", self.satellite_menu)
         self.satellite_menu.addAction(self.free_imagery_act)
         self.satellite_menu.addAction(self.google_earth_engine_act)
+        self.satellite_menu.addSeparator()
+        # Online basemaps: viewed on the map only (their terms do not allow saving the imagery).
+        self.basemap_menu = self.satellite_menu.addMenu(get_icon("Earth.svg"), "Ảnh nền trực tuyến (chỉ xem)")
+        self.basemap_acts = {}
+        for key, basemap in BASEMAPS.items():
+            act = _action("Earth.svg", basemap.name, self.basemap_menu)
+            self.basemap_menu.addAction(act)
+            self.basemap_acts[key] = act
         self.menu_bar.addMenu(self.satellite_menu)
 
     def create_help_menu(self):

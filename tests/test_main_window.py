@@ -415,8 +415,9 @@ def test_satellite_menu_opens_gee_dialog(window, monkeypatch):
     from vgeoint.app.dialogs.google_earth_engine import GoogleEarthEngineDialog
 
     mb = window.menu_bar_
-    assert [a.text() for a in mb.satellite_menu.actions()] == [
+    assert [a.text() for a in mb.satellite_menu.actions() if not a.isSeparator()] == [
         "Tải ảnh miễn phí (không cần tài khoản)...", "Tải ảnh từ Google Earth Engine...",
+        "Ảnh nền trực tuyến (chỉ xem)",
     ]
     assert mb.google_earth_engine_act not in mb.tool_menu.actions()
     monkeypatch.setattr(google_earth_engine, "credentials_path", lambda: Path("missing"))
@@ -442,3 +443,39 @@ def test_tool_bars_on_one_row_without_gaps(window):
     assert all(b.x() - (a.x() + a.width()) <= 1 for a, b in zip(ordered, ordered[1:]))
     assert window.findChild(QToolBar, "VectorBPluginToolBar").isHidden()  # no plugin actions
     settings().remove("WindowState")
+
+
+def test_basemaps_menu_adds_xyz_layers_at_the_bottom(window):
+    from qgis.core import QgsProject
+
+    from vgeoint.app.basemaps import BASEMAPS, xyz_uri
+
+    assert "lyrs%3Ds%26x%3D{x}%26y%3D{y}%26z%3D{z}" in xyz_uri(BASEMAPS["google_satellite"])
+    mb = window.menu_bar_
+    assert [a.text() for a in mb.basemap_menu.actions()] == [b.name for b in BASEMAPS.values()]
+
+    data = QgsVectorLayer("Point?crs=EPSG:4326", "diem", "memory")
+    QgsProject.instance().addMapLayer(data)
+    mb.basemap_acts["google_satellite"].trigger()
+    mb.basemap_acts["google_satellite"].trigger()  # not added twice
+    mb.basemap_acts["osm"].trigger()
+    root = QgsProject.instance().layerTreeRoot()
+    names = [n.name() for n in root.children()]
+    assert names == ["diem", "Google Satellite", "OpenStreetMap"]  # basemaps under the data
+    layer = QgsProject.instance().mapLayersByName("Google Satellite")[0]
+    assert layer.isValid() and layer.providerType() == "wms"
+    assert "Google" in window.message_bar.currentItem().text() or "OpenStreetMap" in window.message_bar.currentItem().text()
+
+
+def test_basemap_on_empty_map_zooms_to_viet_nam(window):
+    """Not to the whole world (the first layer's full extent, applied by the canvas bridge)."""
+    from qgis.core import QgsCoordinateTransform, QgsProject
+
+    from vgeoint.app.main_controller import VIET_NAM, WGS84
+
+    window.menu_bar_.basemap_acts["esri_imagery"].trigger()
+    window.layer_tree_map_canvas_bridge.setCanvasLayers()
+    canvas = window.map_canvas
+    to_wgs84 = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), WGS84, QgsProject.instance())
+    extent = to_wgs84.transformBoundingBox(canvas.extent())
+    assert extent.contains(VIET_NAM) and extent.height() < 30
