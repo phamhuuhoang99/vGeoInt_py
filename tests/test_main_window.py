@@ -211,16 +211,39 @@ def test_create_features_picks_and_edits_layer_without_pencil(window):
     assert layers["roads"].isEditable() and window.toggle_editing_act.isChecked()
     assert window.map_canvas.mapTool() is window.tool_add_line_feature
     assert panel.item_for(layers["roads"]).text() == "roads (đang sửa)"
-    window.toggle_editing_act.trigger()  # the pencil still stops editing
-    assert not layers["roads"].isEditable()
-    assert panel.isVisibleTo(window) and window.create_features_act.isEnabled()  # panel stays usable
+    # Picking another layer switches the edit session; "Tạo đối tượng" stays open
+    panel.layer_list.itemClicked.emit(panel.item_for(layers["wells"]))
+    assert layers["wells"].isEditable() and not layers["roads"].isEditable()
+    assert window.map_canvas.mapTool() is window.tool_add_point_feature
+    assert panel.isVisibleTo(window) and window.create_features_act.isChecked()
 
-    # After stopping, the panel buttons still work on the layer picked in the list
-    window.edit_actions["draw"].trigger()
+    window.toggle_editing_act.trigger()  # the pencil stops editing -> creating ends too
+    assert not layers["wells"].isEditable()
+    assert window.map_canvas.mapTool() is window.tool_identify_feature
+    assert not panel.isVisibleTo(window) and not window.create_features_act.isChecked()
+    assert not any(a.isEnabled() for a in window.edit_actions.values())
+    assert not window.edit_actions["draw"].isChecked()
+
+    # Reopening the panel and picking a layer starts again
+    window.create_features_act.trigger()
+    panel.layer_list.itemClicked.emit(panel.item_for(layers["roads"]))
     assert layers["roads"].isEditable() and window.map_canvas.mapTool() is window.tool_add_line_feature
-    window.toggle_editing_act.trigger()
-    window.edit_actions["select"].trigger()
-    assert layers["roads"].isEditable() and window.map_canvas.mapTool() is window.tool_select_features
+
+
+def test_save_and_stop_ends_creating(window):
+    from qgis.core import QgsFeature, QgsGeometry, QgsPointXY
+
+    layers = _layers(window)
+    panel = window.create_features_panel
+    window.create_features_act.trigger()
+    panel.layer_list.itemClicked.emit(panel.item_for(layers["wells"]))
+    f = QgsFeature(layers["wells"].fields())
+    f.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(105, 21)))
+    window.tool_add_point_feature.digitized(f)
+    window.toggle_editing_act.trigger()  # fixture answers Yes: save and stop
+    assert layers["wells"].featureCount() == 1 and not layers["wells"].isEditable()
+    assert window.map_canvas.mapTool() is window.tool_identify_feature
+    assert not panel.isVisibleTo(window)
 
 
 @pytest.mark.parametrize("name, tool_attr", [
@@ -309,10 +332,9 @@ def test_vector_toolbar_without_identify_and_delete_buttons(window):
     assert "Chọn đối tượng" not in texts and "Xóa đối tượng" not in texts
 
 
-def test_panel_buttons_without_picked_layer_ask_to_pick(window):
+def test_panel_buttons_disabled_without_edit_session(window):
     _layers(window)
-    window.create_features_panel.layer_list.setCurrentItem(None)
+    window.create_features_act.trigger()
     window.edit_actions["draw"].trigger()
     assert window.vector_layer_editing() is None
-    assert not window.edit_actions["draw"].isChecked()
-    assert "Hãy chọn lớp" in window.message_bar.currentItem().text()
+    assert not window.edit_actions["draw"].isEnabled() and not window.edit_actions["draw"].isChecked()

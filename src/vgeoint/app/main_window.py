@@ -633,14 +633,19 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         # "Tạo đối tượng" is always available: picking a layer in its panel starts editing that layer,
         # so there is no separate "select a layer, then start editing" step. The list follows the project.
         self.create_features_panel.refresh(layer)
-        # Panel actions stay enabled: without an edit session they start one on the layer picked in
-        # the panel (see _target_layer), so stopping editing never leaves dead buttons.
+        # The panel tools only work inside an edit session; clicking a layer in the list starts one.
+        for act in getattr(self, "edit_actions", {}).values():
+            act.setEnabled(layer is not None)
         edit_tools = [getattr(self, n, None) for n in ("tool_select_features", "tool_vertex_edit", "tool_move_feature")]
         for tool in filter(None, edit_tools):
             tool.set_layer(layer)
         drawing_or_editing = edit_tools + [self.add_tools.get(g) for g in getattr(self, "add_tools", {})]
         if layer is None and self.map_canvas.mapTool() in [t for t in drawing_or_editing if t is not None]:
             self.map_canvas.setMapTool(self.tool_identify_feature)
+        # Stopping editing ends "Tạo đối tượng" too (not when only switching the edited layer).
+        was_editing, self._was_editing = getattr(self, "_was_editing", False), layer is not None
+        if was_editing and layer is None and not getattr(self, "_switching_layer", False):
+            self.create_features_panel.hide()
 
     def _create_features_panel_visibility(self, visible: bool):
         self.create_features_act.blockSignals(True)
@@ -661,7 +666,11 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         current = self.vector_layer_editing()
         if current is not None and current.id() != layer.id():
             # Only one layer is edited at a time: close the current session first (asks about changes).
-            self._stop_editing()
+            self._switching_layer = True
+            try:
+                self._stop_editing()
+            finally:
+                self._switching_layer = False
             if current.isEditable():
                 self.sync_editing_state()
                 return False  # Cancel: keep editing the current layer
