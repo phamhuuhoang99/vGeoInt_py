@@ -70,6 +70,9 @@ def log_error(message, flush=True):
 DEPENDENCIES_AVAILABLE = True
 missing_deps = []
 
+# OpenCV prints a warning per unknown GeoTIFF tag (georeferencing tags) for every image it reads.
+os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")
+
 try:
     import numpy as np
     import cv2
@@ -177,7 +180,19 @@ def parse_timestamp_from_filename(filename):
     return dt, "00:00:00.000 01/01/1970"
 
 
-def scan_input_directory(input_dir):
+# Results of other tools saved next to the images (e.g. "<image>_buildings_mask.tif" from building
+# segmentation): not frames. They share the timestamp of their image, which made a 0 s step between frames.
+DERIVED_SUFFIX = re.compile(
+    r"_(buildings?_)?(mask|segmentation|segmented|classified|classification|detections?|tracking|result|output)s?$",
+    re.IGNORECASE,
+)
+
+
+def is_derived_image(filename):
+    return bool(DERIVED_SUFFIX.search(os.path.splitext(filename)[0]))
+
+
+def scan_input_directory(input_dir, output_dir=None):
     """Quét và tìm tất cả các file ảnh/GeoTIFF trong thư mục"""
     valid_exts = {".tif", ".tiff", ".jpg", ".jpeg", ".png"}
     found_items = []
@@ -186,19 +201,27 @@ def scan_input_directory(input_dir):
         log_error(f"Input directory does not exist: {input_dir}")
         return []
 
+    output_dir = os.path.normcase(os.path.abspath(output_dir)) if output_dir else None
+    skipped = []
     entries = sorted(os.listdir(input_dir))
     for entry in entries:
         full_path = os.path.join(input_dir, entry)
         if os.path.isfile(full_path):
             ext = os.path.splitext(entry)[1].lower()
             if ext in valid_exts:
+                if is_derived_image(entry):
+                    skipped.append(entry)
+                    continue
                 dt, label = parse_timestamp_from_filename(entry)
                 found_items.append((dt, label, full_path))
         elif os.path.isdir(full_path):
+            # The results folder of an earlier run is not a frame folder.
+            if output_dir and os.path.normcase(os.path.abspath(full_path)) == output_dir:
+                continue
             sub_files = [
                 f
-                for f in os.listdir(full_path)
-                if os.path.splitext(f)[1].lower() in valid_exts
+                for f in sorted(os.listdir(full_path))
+                if os.path.splitext(f)[1].lower() in valid_exts and not is_derived_image(f)
             ]
             if sub_files:
                 target_file = os.path.join(full_path, sub_files[0])
@@ -206,6 +229,8 @@ def scan_input_directory(input_dir):
                 found_items.append((dt, label, target_file))
 
     found_items.sort(key=lambda x: x[0])
+    if skipped:
+        log_progress(f"Bỏ qua {len(skipped)} tệp kết quả xử lý (mặt nạ, phân loại...): {', '.join(skipped)}")
     log_progress(f"Tìm thấy {len(found_items)} tệp ảnh/GeoTIFF hợp lệ trong thư mục:")
     for dt, label, path in found_items:
         log_progress(f"  - [{label}] -> {os.path.basename(path)}")
@@ -426,7 +451,7 @@ def main():
     log_progress(f"[OK] Compute device: {device_str}")
 
     # 1. Quét file và sắp xếp theo mốc thời gian
-    items = scan_input_directory(args.input_dir)
+    items = scan_input_directory(args.input_dir, args.output_dir)
     if len(items) < 2:
         log_error(
             f"Cần ít nhất 2 tệp ảnh hợp lệ để theo dõi quỹ đạo! Tìm thấy: {len(items)}"

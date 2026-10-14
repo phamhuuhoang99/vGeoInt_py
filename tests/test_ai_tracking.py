@@ -558,3 +558,29 @@ def test_object_tracking_real_onnx(window, qtbot, boxes, tmp_path, monkeypatch):
     out = tmp_path / "out" / "track_synthetic_onnx.mp4"
     assert out.stat().st_size > 0
     assert dlg.progressBar.value() == 8
+
+
+@pytest.mark.skipif(not AI_PYTHON.exists(), reason="ai environment not installed")
+def test_vehicle_tracking_skips_masks_and_previous_output(tmp_path):
+    """Masks saved next to the images share their timestamp (0 s step); old results are not frames."""
+    from vgeoint.ai.runner import activated_environment, script_path
+
+    folder = tmp_path / "oto3"
+    (folder / "tracking_output").mkdir(parents=True)
+    for name in ("DJI_20260328162927_0523_V_orthorectified.tif", "DJI_20260328162927_0523_V_orthorectified_buildings_mask.tif",
+                 "DJI_20260328162929_0524_V_orthorectified.tif", "anh_classified.tif", "tracking_output/old.tif"):
+        (folder / name).write_bytes(b"")
+    code = (
+        "import sys, runpy; sys.argv = ['x']; "
+        f"ns = runpy.run_path(r'{script_path('vehicles_track_detection.py')}', run_name='scan'); "
+        f"items = ns['scan_input_directory'](r'{folder}', r'{folder / 'tracking_output'}'); "
+        "print('FILES', [__import__('os').path.basename(p) for _, _, p in items])"
+    )
+    env = activated_environment(str(AI_PYTHON))
+    env["PYTHONPATH"] = str(ROOT / "src")
+    out = subprocess.run([str(AI_PYTHON), "-c", code], capture_output=True, text=True, timeout=300, env=env,
+                         encoding="utf-8")
+    line = next(l for l in out.stdout.splitlines() if l.startswith("FILES"))
+    assert line == ("FILES ['DJI_20260328162927_0523_V_orthorectified.tif', "
+                    "'DJI_20260328162929_0524_V_orthorectified.tif']"), out.stdout + out.stderr
+    assert "Bỏ qua 2 tệp kết quả" in out.stdout
