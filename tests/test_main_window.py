@@ -194,15 +194,25 @@ def _layers(window):
     return made
 
 
-def test_create_features_picks_and_edits_layer_without_pencil(window):
-    """No "select a layer, then press the pencil" step: picking a layer in the panel edits it."""
+def _start_editing(window, layer):
+    window.layer_tree_view.setCurrentLayer(layer)
+    window.toggle_editing_act.trigger()
+    assert layer.isEditable()
+
+
+def test_create_features_needs_edit_session_then_picks_layer(window):
+    """Pencil first; then picking a layer in the panel edits (switches to) that layer."""
     layers = _layers(window)
     panel = window.create_features_panel
-    assert window.create_features_act.isEnabled() and not window.toggle_editing_act.isChecked()
+    assert not window.create_features_act.isEnabled() and not window.toggle_editing_act.isChecked()
+    window.create_features_act.trigger()  # disabled: nothing happens
+    assert not panel.isVisibleTo(window)
+    _start_editing(window, layers["lakes"])
+    assert window.create_features_act.isEnabled()
     window.create_features_act.trigger()
     assert panel.isVisibleTo(window)
     names = [panel.layer_list.item(i).text() for i in range(panel.layer_list.count())]
-    assert names == ["lakes", "roads", "wells"]
+    assert names == ["lakes (đang sửa)", "roads", "wells"]
     panel.filter_edit.setText("wel")
     assert [panel.layer_list.item(i).isHidden() for i in range(3)] == [True, True, False]
     panel.filter_edit.clear()
@@ -222,9 +232,10 @@ def test_create_features_picks_and_edits_layer_without_pencil(window):
     assert window.map_canvas.mapTool() is window.tool_identify_feature
     assert not panel.isVisibleTo(window) and not window.create_features_act.isChecked()
     assert not any(a.isEnabled() for a in window.edit_actions.values())
-    assert not window.edit_actions["draw"].isChecked()
+    assert not window.edit_actions["draw"].isChecked() and not window.create_features_act.isEnabled()
 
-    # Reopening the panel and picking a layer starts again
+    # Pencil again, reopen the panel and pick a layer
+    _start_editing(window, layers["lakes"])
     window.create_features_act.trigger()
     panel.layer_list.itemClicked.emit(panel.item_for(layers["roads"]))
     assert layers["roads"].isEditable() and window.map_canvas.mapTool() is window.tool_add_line_feature
@@ -235,6 +246,7 @@ def test_save_and_stop_ends_creating(window):
 
     layers = _layers(window)
     panel = window.create_features_panel
+    _start_editing(window, layers["wells"])
     window.create_features_act.trigger()
     panel.layer_list.itemClicked.emit(panel.item_for(layers["wells"]))
     f = QgsFeature(layers["wells"].fields())
@@ -334,7 +346,7 @@ def test_vector_toolbar_without_identify_and_delete_buttons(window):
 
 def test_panel_buttons_disabled_without_edit_session(window):
     _layers(window)
-    window.create_features_act.trigger()
+    window.create_features_panel.show()
     window.edit_actions["draw"].trigger()
     assert window.vector_layer_editing() is None
     assert not window.edit_actions["draw"].isEnabled() and not window.edit_actions["draw"].isChecked()

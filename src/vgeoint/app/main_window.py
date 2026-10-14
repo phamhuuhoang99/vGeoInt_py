@@ -633,7 +633,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         # "Tạo đối tượng" is always available: picking a layer in its panel starts editing that layer,
         # so there is no separate "select a layer, then start editing" step. The list follows the project.
         self.create_features_panel.refresh(layer)
-        # The panel tools only work inside an edit session; clicking a layer in the list starts one.
+        # "Tạo đối tượng" and its panel tools only work inside an edit session (pencil first).
+        self.create_features_act.setEnabled(layer is not None)
         for act in getattr(self, "edit_actions", {}).values():
             act.setEnabled(layer is not None)
         edit_tools = [getattr(self, n, None) for n in ("tool_select_features", "tool_vertex_edit", "tool_move_feature")]
