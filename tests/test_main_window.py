@@ -357,3 +357,41 @@ def test_create_features_icon(window):
 
     assert QFile.exists(":/myicon/CreateFeatures.png")
     assert not window.create_features_act.icon().isNull()
+
+
+def test_start_editing_with_raster_selected_opens_session(window, tmp_path):
+    """The pencil does not need a vector layer selected: the layer is picked in "Tạo đối tượng"."""
+    from tests.conftest import make_raster
+
+    window.main_controller.add_raster(make_raster(tmp_path / "anh.tif"))
+    layers = _layers(window)
+    window.layer_tree_view.setCurrentLayer(window.project.mapLayersByName("anh")[0])
+    window.toggle_editing_act.trigger()
+    panel = window.create_features_panel
+    assert window.toggle_editing_act.isChecked() and window.vector_layer_editing() is None
+    assert window.create_features_act.isEnabled() and panel.isVisibleTo(window)
+    assert not any(a.isEnabled() for a in window.edit_actions.values())
+
+    panel.layer_list.itemClicked.emit(panel.item_for(layers["roads"]))
+    assert layers["roads"].isEditable() and window.map_canvas.mapTool() is window.tool_add_line_feature
+    assert all(a.isEnabled() for a in window.edit_actions.values())
+
+    window.toggle_editing_act.trigger()
+    assert not window.toggle_editing_act.isChecked() and not layers["roads"].isEditable()
+    assert not window.create_features_act.isEnabled() and not panel.isVisibleTo(window)
+
+
+def test_session_without_layer_toggles_off(window):
+    _layers(window)
+    window.layer_tree_view.setCurrentLayer(None)
+    window.toggle_editing_act.trigger()
+    assert window.toggle_editing_act.isChecked() and window.create_features_panel.isVisibleTo(window)
+    window.toggle_editing_act.trigger()
+    assert not window.toggle_editing_act.isChecked() and not window.create_features_act.isEnabled()
+    assert not window.create_features_panel.isVisibleTo(window)
+
+
+def test_start_editing_without_vector_layers_warns(window):
+    window.toggle_editing_act.trigger()
+    assert not window.toggle_editing_act.isChecked() and not window.create_features_act.isEnabled()
+    assert "Chưa có lớp vector" in window.message_bar.currentItem().text()

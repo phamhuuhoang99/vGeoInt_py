@@ -592,6 +592,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             self._start_editing()
         else:
             self._stop_editing()
+            if self.vector_layer_editing() is None:  # not cancelled
+                self._edit_session = False
         self.sync_editing_state()
 
     def _stop_editing(self):
@@ -623,18 +625,26 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         if act is None:
             return
         layer = self.vector_layer_editing()
+        # The edit session (pencil) can be on before any layer is edited: the layer is then picked in
+        # "Tạo đối tượng". A layer leaving edit mode ends the session, unless only switching layers.
+        was_editing, self._was_editing = getattr(self, "_was_editing", False), layer is not None
+        if layer is not None:
+            self._edit_session = True
+        elif was_editing and not getattr(self, "_switching_layer", False):
+            self._edit_session = False
+        session = getattr(self, "_edit_session", False)
         act.blockSignals(True)
-        act.setChecked(layer is not None)
+        act.setChecked(session)
         act.blockSignals(False)
-        if layer is None:
-            act.setToolTip("Bật chỉnh sửa layer vector đang chọn")
-        else:
+        if layer is not None:
             act.setToolTip(f"Đang chỉnh sửa: {layer.name()} — bấm để tắt chỉnh sửa")
-        # "Tạo đối tượng" is always available: picking a layer in its panel starts editing that layer,
-        # so there is no separate "select a layer, then start editing" step. The list follows the project.
+        elif session:
+            act.setToolTip("Đang chỉnh sửa: chọn lớp trong bảng Tạo đối tượng — bấm để tắt chỉnh sửa")
+        else:
+            act.setToolTip("Bật chỉnh sửa")
         self.create_features_panel.refresh(layer)
-        # "Tạo đối tượng" and its panel tools only work inside an edit session (pencil first).
-        self.create_features_act.setEnabled(layer is not None)
+        # "Tạo đối tượng" only works inside an edit session; its tools need an edited layer.
+        self.create_features_act.setEnabled(session)
         for act in getattr(self, "edit_actions", {}).values():
             act.setEnabled(layer is not None)
         edit_tools = [getattr(self, n, None) for n in ("tool_select_features", "tool_vertex_edit", "tool_move_feature")]
@@ -643,9 +653,7 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         drawing_or_editing = edit_tools + [self.add_tools.get(g) for g in getattr(self, "add_tools", {})]
         if layer is None and self.map_canvas.mapTool() in [t for t in drawing_or_editing if t is not None]:
             self.map_canvas.setMapTool(self.tool_identify_feature)
-        # Stopping editing ends "Tạo đối tượng" too (not when only switching the edited layer).
-        was_editing, self._was_editing = getattr(self, "_was_editing", False), layer is not None
-        if was_editing and layer is None and not getattr(self, "_switching_layer", False):
+        if not session:  # stopping editing ends "Tạo đối tượng" too
             self.create_features_panel.hide()
 
     def _create_features_panel_visibility(self, visible: bool):
@@ -710,11 +718,19 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             )
             return
         vlayer = self.active_layer()
-        if not isinstance(vlayer, QgsVectorLayer):
-            self._push(title, "Công cụ chỉ hoạt động trên vector layer", Qgis.MessageLevel.Warning)
+        if isinstance(vlayer, QgsVectorLayer) and vlayer.isSpatial():
+            if not vlayer.startEditing():
+                self._push(title, "Thất bại", Qgis.MessageLevel.Critical)
             return
-        if not vlayer.startEditing():
-            self._push(title, "Thất bại", Qgis.MessageLevel.Critical)
+        # No vector layer selected (e.g. a raster): open the session; the layer is picked in the panel.
+        if not any(
+            isinstance(l, QgsVectorLayer) and l.isSpatial() for l in self.project.mapLayers().values()
+        ):
+            self._push(title, "Chưa có lớp vector nào để chỉnh sửa", Qgis.MessageLevel.Warning)
+            return
+        self._edit_session = True
+        self.create_features_panel.show()
+        self._push(title, "Chọn lớp cần sửa trong bảng Tạo đối tượng", Qgis.MessageLevel.Info)
 
     def _save_editing(self):
         title = "Lưu thay đổi"
