@@ -1134,6 +1134,7 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             mb.image_blending_act: mc.image_blending,
             mb.auto_classification_act: mc.auto_classification,
             mb.google_earth_engine_act: mc.google_earth_engine,
+            mb.free_imagery_act: mc.free_imagery,
             mb.annotation_manager_act: mc.annotation_manager,
             # Help menu
             mb.information_act: self._show_information,

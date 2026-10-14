@@ -161,6 +161,8 @@ class MenuBar:
         self.google_earth_engine_act = _action(
             "GoogleEarthEngine.svg", "Tải ảnh từ Google Earth Engine...", self.satellite_menu
         )
+        self.free_imagery_act = _action("Earth.svg", "Tải ảnh miễn phí (không cần tài khoản)...", self.satellite_menu)
+        self.satellite_menu.addAction(self.free_imagery_act)
         self.satellite_menu.addAction(self.google_earth_engine_act)
         self.menu_bar.addMenu(self.satellite_menu)
 

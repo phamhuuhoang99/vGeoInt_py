@@ -415,7 +415,9 @@ def test_satellite_menu_opens_gee_dialog(window, monkeypatch):
     from vgeoint.app.dialogs.google_earth_engine import GoogleEarthEngineDialog
 
     mb = window.menu_bar_
-    assert [a.text() for a in mb.satellite_menu.actions()] == ["Tải ảnh từ Google Earth Engine..."]
+    assert [a.text() for a in mb.satellite_menu.actions()] == [
+        "Tải ảnh miễn phí (không cần tài khoản)...", "Tải ảnh từ Google Earth Engine...",
+    ]
     assert mb.google_earth_engine_act not in mb.tool_menu.actions()
     monkeypatch.setattr(google_earth_engine, "credentials_path", lambda: Path("missing"))
     mb.google_earth_engine_act.trigger()

@@ -18,11 +18,18 @@ from vgeoint.common.paths import MODELS_DIR, ROOT, SCRIPTS_DIR
 EVENT_PREFIX = "@@VGEOINT "
 
 
+GUI_ENV = "gui"  # the environment running the app itself (GDAL, Qt), for scripts that need no AI package
+
+
 def python_for(env: str = "ai") -> str:
     """Interpreter of a pixi environment; VGEOINT_<ENV>_PYTHON overrides it."""
     override = os.environ.get(f"VGEOINT_{env.upper()}_PYTHON")
     if override:
         return override
+    if env == GUI_ENV:
+        # python.exe rather than the pythonw.exe of the installed launcher: its output goes to the pipe.
+        console = Path(sys.executable).with_name("python.exe")
+        return str(console) if sys.platform == "win32" and console.exists() else sys.executable
     # .pixi/envs/<env>: development checkout; envs/<env>: installed by the AI add-on installer.
     for env_dir in (ROOT / ".pixi" / "envs" / env, ROOT / "envs" / env):
         exe = env_dir / ("python.exe" if sys.platform == "win32" else "bin/python")
@@ -33,6 +40,8 @@ def python_for(env: str = "ai") -> str:
 
 def env_available(env: str) -> bool:
     """True when the env has its own interpreter (or an override), i.e. not falling back to sys.executable."""
+    if env == GUI_ENV:
+        return True
     return python_for(env) != sys.executable or bool(os.environ.get(f"VGEOINT_{env.upper()}_PYTHON"))
 
 

@@ -145,6 +145,8 @@ _ERROR_HINTS = [
     ("not found", _IMAGE_NOT_FOUND),
     ("band pattern", "Ảnh không có kênh đã chọn: kiểm tra Tổ hợp kênh / ô Kênh."),
     ("nameresolutionerror", _OFFLINE),
+    ("urlopen error", _OFFLINE),
+    ("couldn't resolve host", _OFFLINE),
     ("connectionerror", _OFFLINE),
 ]
 
@@ -180,11 +182,20 @@ class GoogleEarthEngineDialog(QDialog):
     # The C++ dialog emitted complete() after adding the layer itself; MainController never connected it
     # for dialogs, so there is no `complete` signal here (it would add the image twice).
 
+    # Overridden by FreeImageryDialog (same form, another source without account).
+    TITLE = "Tải ảnh từ Google Earth Engine"
+    SCRIPT = SCRIPT
+    DATASETS = DATASETS
+    SETTINGS = "GoogleEarthEngine"
+    NEEDS_ACCOUNT = True
+    ENV = "ai"  # earthengine-api is in the ai environment
+    MAX_DOWNLOAD_MB: float | None = MAX_DOWNLOAD_MB
+
     def __init__(self, parent=None, map_canvas=None, layer_tree_view=None):
         super().__init__(parent)
         self.map_canvas = map_canvas
         self.layer_tree_view = layer_tree_view
-        self.is_logged_in = credentials_path().exists()
+        self.is_logged_in = credentials_path().exists() if self.NEEDS_ACCOUNT else True
         self.output_files: list[str] = []
         self._process: ScriptRunner | None = None
         self._task = ""  # "download" | "list" | "check"
@@ -197,8 +208,9 @@ class GoogleEarthEngineDialog(QDialog):
         self._update_login_state()
         self._dataset_changed()
 
-        self.login_btn.clicked.connect(self.on_login_clicked)
-        self.check_project_btn.clicked.connect(self.on_check_project_clicked)
+        if self.NEEDS_ACCOUNT:
+            self.login_btn.clicked.connect(self.on_login_clicked)
+            self.check_project_btn.clicked.connect(self.on_check_project_clicked)
         self.search_btn.clicked.connect(self.on_search_clicked)
         self.download_btn.clicked.connect(self.on_download_clicked)
         self.cancel_btn.clicked.connect(self.on_cancel_clicked)
@@ -215,14 +227,15 @@ class GoogleEarthEngineDialog(QDialog):
         self.images_table.itemSelectionChanged.connect(self._update_selection_label)
         self.extent_widget.toggleDialogVisibility.connect(self.setVisible)
 
-        self.add_log("Giao diện Google Earth Engine đã sẵn sàng", "SYSTEM")
+        self.add_log(f"Giao diện {self.TITLE} đã sẵn sàng", "SYSTEM")
+        self._sized = False
 
     # BPluginInterface
     def name(self) -> str:
         return "GoogleEarthEngine"
 
     def vn_name(self) -> str:
-        return "Tải ảnh từ Google Earth Engine"
+        return self.TITLE
 
     def get_icon(self):
         return get_icon("GoogleEarthEngine.svg")
@@ -232,7 +245,7 @@ class GoogleEarthEngineDialog(QDialog):
 
     # ---------------------------------------------------------------- UI
     def _setup_ui(self):
-        self.setWindowTitle("Tải ảnh từ Google Earth Engine")
+        self.setWindowTitle(self.TITLE)
         self.setWindowIcon(self.get_icon())
         layout = QVBoxLayout(self)
         columns = QHBoxLayout()
@@ -290,7 +303,7 @@ class GoogleEarthEngineDialog(QDialog):
         form = QFormLayout(group)
 
         self.dataset_combo = QComboBox(self)
-        for ds in DATASETS:
+        for ds in self.DATASETS:
             self.dataset_combo.addItem(ds.name)
         form.addRow("Bộ dữ liệu:", self.dataset_combo)
 
@@ -436,7 +449,7 @@ class GoogleEarthEngineDialog(QDialog):
 
     # ---------------------------------------------------------------- state
     def dataset(self) -> Dataset:
-        return DATASETS[max(0, self.dataset_combo.currentIndex())]
+        return self.DATASETS[max(0, self.dataset_combo.currentIndex())]
 
     def bands(self) -> str:
         return self.bands_edit.text().strip() or (self.preset_combo.currentData() or "")
@@ -445,7 +458,7 @@ class GoogleEarthEngineDialog(QDialog):
         return self.method_combo.currentData() or self.dataset().methods[0]
 
     def project_id(self) -> str:
-        return self.project_combo.currentText().strip()
+        return self.project_combo.currentText().strip() if self.NEEDS_ACCOUNT else ""
 
     def region(self) -> QgsRectangle:
         return self.extent_widget.outputExtent()
@@ -489,10 +502,13 @@ class GoogleEarthEngineDialog(QDialog):
         bpp = 4 if self.method() == "median" else ds.bytes_per_pixel
         area, w, h, mb = estimate(extent, self.scale_spin.value(), n_bands, bpp)
         text = f"Diện tích ≈ {area:,.1f} km² · ảnh ≈ {w:,} × {h:,} điểm ảnh · ≈ {mb:,.1f} MB"
-        if mb > MAX_DOWNLOAD_MB:
-            need = math.ceil(self.scale_spin.value() * math.sqrt(mb / MAX_DOWNLOAD_MB))
-            text = (f"<font color='#c0392b'>{text}<br>Quá giới hạn tải trực tiếp của Earth Engine (~{MAX_DOWNLOAD_MB} MB): "
+        limit = self.MAX_DOWNLOAD_MB
+        if limit and mb > limit:
+            need = math.ceil(self.scale_spin.value() * math.sqrt(mb / limit))
+            text = (f"<font color='#c0392b'>{text}<br>Quá giới hạn tải trực tiếp của Earth Engine (~{limit} MB): "
                     f"thu nhỏ vùng hoặc tăng độ phân giải lên ≥ {need} m.</font>")
+        elif mb > 500:
+            text = f"<font color='#d35400'>{text}<br>Ảnh lớn: tải sẽ lâu, cân nhắc thu nhỏ vùng.</font>"
         self.estimate_label.setText(text)
 
     def _clear_images(self, *_):
@@ -510,6 +526,8 @@ class GoogleEarthEngineDialog(QDialog):
             self.selection_label.setText("")
 
     def _update_login_state(self):
+        if not self.NEEDS_ACCOUNT:
+            return
         if self.is_logged_in:
             self.login_label.setText("<font color='#27ae60'>✓ Đã đăng nhập trên máy này</font>")
             self.login_btn.setText("Đăng nhập lại")
@@ -519,27 +537,28 @@ class GoogleEarthEngineDialog(QDialog):
 
     # ---------------------------------------------------------------- settings
     def _projects(self) -> list[str]:
-        saved = str(settings().value("GoogleEarthEngine/Projects", "") or "")
+        saved = str(settings().value(f"{self.SETTINGS}/Projects", "") or "")
         return [p for p in saved.split("|") if p]
 
     def _remember_project(self, project: str):
+        if not self.NEEDS_ACCOUNT:
+            return
         projects = [project] + [p for p in self._projects() if p != project]
-        settings().setValue("GoogleEarthEngine/Projects", "|".join(projects[:10]))
+        settings().setValue(f"{self.SETTINGS}/Projects", "|".join(projects[:10]))
         if self.project_combo.findText(project) < 0:
             self.project_combo.insertItem(0, project)
 
     def _load_settings(self):
         s = settings()
-        projects = self._projects() or [DEFAULT_PROJECT]
-        self.project_combo.addItems(projects)
-        self.project_combo.setCurrentText(str(s.value("GoogleEarthEngine/Project", projects[0])))
-        self.dataset_combo.setCurrentIndex(int(s.value("GoogleEarthEngine/Dataset", 0)))
-        self.cloud_spin.setValue(int(s.value("GoogleEarthEngine/MaxCloud", 20)))
-        default_out = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation),
-                           "vGeoInt", "GoogleEarthEngine")
-        self.output_path_edit.setText(str(s.value("GoogleEarthEngine/Output", str(default_out))))
+        if self.NEEDS_ACCOUNT:
+            projects = self._projects() or [DEFAULT_PROJECT]
+            self.project_combo.addItems(projects)
+            self.project_combo.setCurrentText(str(s.value(f"{self.SETTINGS}/Project", projects[0])))
+        self.dataset_combo.setCurrentIndex(int(s.value(f"{self.SETTINGS}/Dataset", 0)))
+        self.cloud_spin.setValue(int(s.value(f"{self.SETTINGS}/MaxCloud", 20)))
+        self.output_path_edit.setText(str(s.value(f"{self.SETTINGS}/Output", self.default_output())))
 
-        saved = str(s.value("GoogleEarthEngine/Region", "") or "")
+        saved = str(s.value(f"{self.SETTINGS}/Region", "") or "")
         try:
             x0, y0, x1, y1 = (float(v) for v in saved.split(","))
             self.extent_widget.setOutputExtentFromUser(QgsRectangle(x0, y0, x1, y1), WGS84)
@@ -552,14 +571,19 @@ class GoogleEarthEngineDialog(QDialog):
             else:
                 self.extent_widget.setOutputExtentFromUser(DEFAULT_REGION, WGS84)
 
+    def default_output(self) -> str:
+        documents = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
+        return str(Path(documents, "vGeoInt", self.SETTINGS))
+
     def _save_settings(self):
         s = settings()
-        s.setValue("GoogleEarthEngine/Project", self.project_id())
-        s.setValue("GoogleEarthEngine/Dataset", self.dataset_combo.currentIndex())
-        s.setValue("GoogleEarthEngine/MaxCloud", self.cloud_spin.value())
-        s.setValue("GoogleEarthEngine/Output", self.output_path_edit.text().strip())
+        if self.NEEDS_ACCOUNT:
+            s.setValue(f"{self.SETTINGS}/Project", self.project_id())
+        s.setValue(f"{self.SETTINGS}/Dataset", self.dataset_combo.currentIndex())
+        s.setValue(f"{self.SETTINGS}/MaxCloud", self.cloud_spin.value())
+        s.setValue(f"{self.SETTINGS}/Output", self.output_path_edit.text().strip())
         if self.extent_widget.isValid():
-            s.setValue("GoogleEarthEngine/Region", self.region_text())
+            s.setValue(f"{self.SETTINGS}/Region", self.region_text())
 
     # ---------------------------------------------------------------- login
     def on_login_clicked(self):
@@ -597,7 +621,7 @@ class GoogleEarthEngineDialog(QDialog):
         problem = ""
         if not self.is_logged_in:
             problem = "Vui lòng đăng nhập trước!"
-        elif not self.project_id():
+        elif self.NEEDS_ACCOUNT and not self.project_id():
             problem = "Vui lòng nhập Project!"
         elif need_region and (not self.extent_widget.isValid() or self.region().isEmpty()):
             problem = "Vui lòng chọn vùng quan tâm!"
@@ -636,8 +660,7 @@ class GoogleEarthEngineDialog(QDialog):
             return
         output_path = self.output_path_edit.text().strip()
         if not output_path:
-            output_path = str(Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation),
-                                   "vGeoInt", "GoogleEarthEngine"))
+            output_path = self.default_output()
             self.output_path_edit.setText(output_path)
         image_id = self.data_id_edit.text().strip() or self.selected_image_id()
         args = ["--output", os.path.abspath(output_path), "--scale", str(self.scale_spin.value())]
@@ -646,7 +669,7 @@ class GoogleEarthEngineDialog(QDialog):
         if image_id:
             args += ["--data_id", image_id]
         else:
-            short = self.dataset().collection.split("/")[0]
+            short = self.dataset().collection.split("/")[0].replace("-", "_")
             args += [*self._collection_arguments(), "--method", self.method(), "--name", f"{short}_{self.method()}"]
         self.add_log("Bắt đầu tải dữ liệu...", "INFO")
         self._save_settings()
@@ -656,7 +679,10 @@ class GoogleEarthEngineDialog(QDialog):
         self.close()
 
     def _set_busy(self, busy: bool, text: str = ""):
-        for w in (self.download_btn, self.search_btn, self.check_project_btn, self.login_btn):
+        buttons = [self.download_btn, self.search_btn]
+        if self.NEEDS_ACCOUNT:
+            buttons += [self.check_project_btn, self.login_btn]
+        for w in buttons:
             w.setEnabled(not busy)
         if not busy:
             self.search_btn.setEnabled(self.dataset().dated)
@@ -668,7 +694,7 @@ class GoogleEarthEngineDialog(QDialog):
             self._process.deleteLater()
         self._task = task
         self._process_start_time = QDateTime.currentDateTime()
-        self._process = ScriptRunner(self)
+        self._process = ScriptRunner(self, env=self.ENV)
         self._process.started.connect(self._on_process_started)
         self._process.finished.connect(self.on_process_finished)
         self._process.output_line.connect(self.on_process_ready_read_standard_output)
@@ -677,17 +703,22 @@ class GoogleEarthEngineDialog(QDialog):
         self._downloaded_file = ""
         self._error_lines: list[str] = []
 
-        script = script_path(SCRIPT)
+        script = script_path(self.SCRIPT)
         if not script.exists():
             self.add_log(f"Lỗi: Script Python không tồn tại: {script}", "ERROR")
             self.on_process_error("Không thể khởi động process")
             return
-        arguments = ["--project_id", self.project_id(), "--region", self.region_text(), *args]
+        arguments = [*self._source_arguments(), "--region", self.region_text(), *args]
         self.add_log(f"python {script.name} {' '.join(arguments)}", "INFO")
         texts = {"download": "Đang tải ảnh...", "list": "Đang tìm ảnh...", "check": "Đang kiểm tra project..."}
         self._set_busy(True, texts[task])
         self._started = False
-        self._process.start_script(SCRIPT, arguments)
+        self._process.start_script(self.SCRIPT, arguments)
+
+    def _source_arguments(self) -> list[str]:
+        return ["--project_id", self.project_id()]
+
+
 
     def _on_process_started(self):
         self._started = True
@@ -729,7 +760,7 @@ class GoogleEarthEngineDialog(QDialog):
         status = self.status_label.text()
         self._set_busy(False)
         ok = not crashed and exit_code == 0
-        reason = explain_error(self._error_lines, self.project_id())
+        reason = self._explain(self._error_lines)
 
         if task == "check":
             if ok:
@@ -789,6 +820,9 @@ class GoogleEarthEngineDialog(QDialog):
             self, "Thành công", f"Tải dữ liệu hoàn thành!\n\nFile: {info.filePath()}\nThời gian xử lý: {time_str}"
         )
 
+    def _explain(self, lines: list[str]) -> str:
+        return explain_error(lines, self.project_id())
+
     def on_process_error(self, error_msg: str):
         self._set_busy(False, "Lỗi")
         self.add_log(f"❌ Lỗi process: {error_msg}", "ERROR")
@@ -828,7 +862,7 @@ class GoogleEarthEngineDialog(QDialog):
     def save_log(self):
         s = settings()
         default_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
-        dir_ = s.value("GoogleEarthEngine/LogDir", default_dir)
+        dir_ = s.value(f"{self.SETTINGS}/LogDir", default_dir)
         timestamp = QDateTime.currentDateTime().toString("yyyyMMdd_hhmmss")
         file_name, _ = QFileDialog.getSaveFileName(
             self, "Lưu log", QDir(dir_).filePath(f"gee_download_log_{timestamp}.txt"), "Text files (*.txt);;All files (*)"
@@ -846,7 +880,7 @@ class GoogleEarthEngineDialog(QDialog):
         self.add_log(f"✅ Log đã được lưu: {QFileInfo(file_name).fileName()}", "SUCCESS")
         store_dir = QFileInfo(file_name).dir().path()
         if store_dir != dir_:
-            s.setValue("GoogleEarthEngine/LogDir", store_dir)
+            s.setValue(f"{self.SETTINGS}/LogDir", store_dir)
 
     def format_log_message(self, message: str, log_type: str) -> str:
         timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
@@ -884,6 +918,12 @@ class GoogleEarthEngineDialog(QDialog):
         if self.map_canvas is not None:
             self.map_canvas.refresh()
         return True
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._sized:  # compact on first show (the collapsed groups only shrink once shown)
+            self._sized = True
+            self.adjustSize()
 
     def done(self, result: int):
         # Kill a running script when the dialog closes (C++ deleteLater'd the QProcess in the destructor).

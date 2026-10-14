@@ -198,11 +198,16 @@ class MainController:
         self._std_dialog("auto_classification", "AutoClassificationDialog")
 
     def google_earth_engine(self):
+        self._imagery_dialog("google_earth_engine", "GoogleEarthEngineDialog")
+
+    def free_imagery(self):
+        self._imagery_dialog("free_imagery", "FreeImageryDialog")
+
+    def _imagery_dialog(self, module: str, class_name: str):
         # Not modal: the map stays usable to pan/zoom and to draw the region of interest.
         mw = self.main_window
         dialog = self._exec_dialog(
-            "google_earth_engine", "GoogleEarthEngineDialog", mw, mw.map_canvas, mw.layer_tree_view,
-            modal_exec=False, modal=False,
+            module, class_name, mw, mw.map_canvas, mw.layer_tree_view, modal_exec=False, modal=False
         )
         if dialog is not None:
             dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)

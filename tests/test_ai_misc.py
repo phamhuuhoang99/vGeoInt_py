@@ -735,6 +735,120 @@ def test_gee_draw_region_on_map(gee, qtbot):
     gee.close()
 
 
+# ======================================================================= Free imagery (Planetary Computer)
+FAKE_FREE = """
+p = argparse.ArgumentParser()
+for k in ("--region", "--output", "--data_id", "--collection", "--start", "--end", "--max_cloud", "--platform",
+          "--method", "--bands", "--scale", "--name"):
+    p.add_argument(k)
+p.add_argument("--list", action="store_true")
+a = p.parse_args()
+json.dump(sys.argv[1:], open(os.environ["FREE_ARGS_FILE"], "w"))
+if a.list:
+    result(total=1, images=[{"id": "S2B_MSIL2A_20250117T032959_R018_T48QWJ_20250117T073102",
+                             "date": "2025-01-17 03:29", "cloud": 0.1}])
+    sys.exit(0)
+if a.data_id == "offline":
+    print("[12:00:01] [ERROR] <urlopen error [Errno 11001] getaddrinfo failed>")
+    sys.exit(1)
+os.makedirs(a.output, exist_ok=True)
+path = os.path.join(a.output, "sentinel_2_l2a_least_cloudy.tif")
+write(path, [np.full((20, 30), 7, np.uint16)] * 3, gdal.GDT_UInt16)
+result(output=path)
+"""
+
+
+@pytest.fixture
+def free(window, tmp_path, fake_scripts, monkeypatch):
+    from vgeoint.app.dialogs.free_imagery import FreeImageryDialog
+    from vgeoint.common.utils import settings
+
+    settings().remove("FreeImagery")
+    fake_scripts("free_imagery_download.py", FAKE_FREE)
+    monkeypatch.setenv("VGEOINT_GUI_PYTHON", sys.executable)
+    args_file = tmp_path / "free_args.json"
+    monkeypatch.setenv("FREE_ARGS_FILE", str(args_file))
+    dlg = FreeImageryDialog(window, window.map_canvas, window.layer_tree_view)
+    dlg.output_path_edit.setText(str(tmp_path / "dl"))
+    dlg.args = lambda: json.loads(args_file.read_text())
+    return dlg
+
+
+def test_free_imagery_needs_no_account(free):
+    assert free.windowTitle() == "Tải ảnh vệ tinh miễn phí (không cần tài khoản)"
+    assert free.is_logged_in and not hasattr(free, "login_btn") and not hasattr(free, "project_combo")
+    assert free.bands() == "B04,B03,B02" and free.scale_spin.value() == 10
+    assert [free.method_combo.itemData(i) for i in range(free.method_combo.count())] == ["least_cloudy", "mosaic"]
+    assert "Quá giới hạn" not in free.estimate_label.text()
+
+
+def test_free_imagery_runs_with_the_app_python(free, monkeypatch):
+    """The script needs only GDAL: it runs in the GUI environment, also without the AI add-on."""
+    from vgeoint.ai import runner
+
+    monkeypatch.delenv("VGEOINT_GUI_PYTHON")
+    monkeypatch.setenv("VGEOINT_AI_PYTHON", "")
+    assert runner.env_available(free.ENV)
+    assert Path(runner.python_for(free.ENV)).name.lower() in ("python.exe", "python")
+
+
+def test_free_imagery_search_and_download(free, boxes, qtbot):
+    from qgis.PyQt.QtCore import QDate
+
+    free.dataset_combo.setCurrentIndex(1)  # Landsat 9
+    free.start_date.setDate(QDate(2025, 1, 1))
+    free.end_date.setDate(QDate(2025, 3, 31))
+    free.search_btn.click()
+    _wait(free, qtbot)
+    assert free.args() == [
+        "--region", "105.7,20.9,106,21.1", "--collection", "landsat-c2-l2", "--start", "2025-01-01",
+        "--end", "2025-04-01", "--max_cloud", "20", "--platform", "landsat-9", "--list",
+    ]
+    assert free.images_table.rowCount() == 1
+
+    free.images_table.selectRow(0)
+    free.download_btn.click()
+    _wait(free, qtbot)
+    args = free.args()
+    assert args[args.index("--data_id") + 1] == "S2B_MSIL2A_20250117T032959_R018_T48QWJ_20250117T073102"
+    assert args[args.index("--collection") + 1] == "landsat-c2-l2"
+    assert args[args.index("--bands") + 1] == "red,green,blue" and args[args.index("--scale") + 1] == "30"
+    assert layer_names() == ["sentinel_2_l2a_least_cloudy"]
+    assert boxes[-1][0] == "information"
+
+
+def test_free_imagery_dem_and_failure(free, boxes, qtbot):
+    free.dataset_combo.setCurrentIndex(4)  # DEM: mosaic of the tiles, no dates / clouds
+    free.download_btn.click()
+    _wait(free, qtbot)
+    args = free.args()
+    assert args[args.index("--collection") + 1] == "cop-dem-glo-30" and args[args.index("--method") + 1] == "mosaic"
+    assert "--start" not in args and "--max_cloud" not in args
+
+    free.data_id_edit.setText("offline")
+    free.download_btn.click()
+    _wait(free, qtbot)
+    assert boxes[-1][0] == "critical" and "Không kết nối được Internet" in boxes[-1][2]
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(300)
+def test_free_imagery_real_dem_download(window, tmp_path, boxes, qtbot):
+    """Real download from Planetary Computer (network): a 5 km DEM around Hà Nội."""
+    from qgis.core import QgsRectangle
+
+    from vgeoint.app.dialogs.free_imagery import FreeImageryDialog
+
+    dlg = FreeImageryDialog(window, window.map_canvas, window.layer_tree_view)
+    dlg.output_path_edit.setText(str(tmp_path))
+    dlg.dataset_combo.setCurrentIndex(4)
+    dlg.extent_widget.setOutputExtentFromUser(QgsRectangle(105.80, 21.00, 105.85, 21.05), dlg.extent_widget.outputCrs())
+    dlg.download_btn.click()
+    qtbot.waitUntil(lambda: dlg.download_btn.isEnabled(), timeout=240000)
+    assert boxes[-1][0] == "information", dlg.log_text_edit.toPlainText()
+    assert len(layer_names()) == 1
+
+
 # ======================================================================= real runs (slow)
 def _real_ai(monkeypatch):
     if not AI_PYTHON.exists():
