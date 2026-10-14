@@ -19,6 +19,7 @@ from qgis.core import (
 from qgis.gui import (
     QgsAdvancedDigitizingDockWidget,
     QgsDockWidget,
+    QgsExtentWidget,
     QgsLayerTreeMapCanvasBridge,
     QgsLayerTreeView,
     QgsMapCanvas,
@@ -235,6 +236,7 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         self.save_settings()
         super().closeEvent(event)
         self.disconnect_project_signals()
+        self.delete_extent_dialogs()
         self.delete_map_tools()
 
     def disconnect_project_signals(self):
@@ -249,6 +251,16 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
                 signal.disconnect(slot)
             except TypeError:
                 pass  # already disconnected
+
+    def delete_extent_dialogs(self):
+        """Delete dialogs with a QgsExtentWidget (e.g. Google Earth Engine) before the canvas.
+
+        Its "draw on canvas" tool owns a rubber band that lives in the canvas scene: destroyed after the
+        canvas, the band would be deleted twice (crash on exit).
+        """
+        for widget in self.findChildren(QgsExtentWidget):
+            if not sip.isdeleted(widget) and widget.window() is not self:
+                sip.delete(widget.window())
 
     def delete_map_tools(self):
         """Delete map tools while the canvas and CAD dock still exist (the C++ destructor did the same).

@@ -501,70 +501,131 @@ def test_pansharpening_finds_otb(tmp_path):
 # ======================================================================= GoogleEarthEngine
 FAKE_GEE = """
 p = argparse.ArgumentParser()
-for k in ("--data_id", "--region", "--output", "--project_id"):
+for k in ("--project_id", "--region", "--output", "--data_id", "--collection", "--start", "--end",
+          "--cloud_property", "--max_cloud", "--method", "--bands", "--scale", "--name"):
     p.add_argument(k)
+p.add_argument("--filter", action="append")
+p.add_argument("--list", action="store_true")
+p.add_argument("--check", action="store_true")
 a = p.parse_args()
-print(f"[12:00:00] [INFO] Data ID: {a.data_id}")
-os.makedirs(a.output, exist_ok=True)
-json.dump(sys.argv[1:], open(os.path.join(a.output, "args.json"), "w"))
+json.dump(sys.argv[1:], open(os.environ["GEE_ARGS_FILE"], "w"))
+if a.project_id == "bad-project":
+    print("[12:00:00] [ERROR] Cannot connect to project bad-project: Caller does not have required permission")
+    sys.exit(1)
+print(f"[12:00:00] [OK] Connected to Earth Engine with project: {a.project_id}")
+if a.check:
+    result(project=a.project_id)
+    sys.exit(0)
+if a.list:
+    result(total=3, images=[
+        {"id": "COPERNICUS/S2_SR_HARMONIZED/20250214T032001_T48QWJ", "date": "2025-02-14 03:35", "cloud": 0.8},
+        {"id": "COPERNICUS/S2_SR_HARMONIZED/20250301T031539_T48QWJ", "date": "2025-03-01 03:35", "cloud": 4.2},
+    ])
+    sys.exit(0)
 if a.data_id == "bad":
     print("[12:00:01] [ERROR] Image not found")
     print("ee.EEException: not found", file=sys.stderr)
     sys.exit(1)
+os.makedirs(a.output, exist_ok=True)
 path = os.path.join(a.output, "COPERNICUS_S2_20250101.tif")
 write(path, [np.full((20, 30), 7, np.uint8)] * 3)
 print(f"[12:00:02] [OK] Completed! File downloaded successfully to: {path}")
-if a.data_id != "noevent":
-    result(output=path)
+result(output=path)
 """
 
 
-def _gee(window):
-    from vgeoint.app.dialogs.google_earth_engine import GoogleEarthEngineDialog
+@pytest.fixture
+def gee(window, tmp_path, fake_scripts, monkeypatch):
+    """The dialog, logged in, with project "my-project" and the fake script recording its arguments."""
+    from vgeoint.app.dialogs import google_earth_engine
 
-    return GoogleEarthEngineDialog(window, window.map_canvas, window.layer_tree_view)
+    from vgeoint.common.utils import settings
+
+    settings().remove("GoogleEarthEngine")  # remembered project / region of earlier tests
+    fake_scripts("gee_download.py", FAKE_GEE)
+    args_file = tmp_path / "gee_args.json"
+    monkeypatch.setenv("GEE_ARGS_FILE", str(args_file))
+    (tmp_path / "credentials").write_text("{}")
+    monkeypatch.setattr(google_earth_engine, "credentials_path", lambda: tmp_path / "credentials")
+    dlg = google_earth_engine.GoogleEarthEngineDialog(window, window.map_canvas, window.layer_tree_view)
+    dlg.project_combo.setCurrentText("my-project")
+    dlg.output_path_edit.setText(str(tmp_path / "dl"))
+    dlg.args = lambda: json.loads(args_file.read_text())
+    return dlg
 
 
-def test_gee_ui_and_validation(window, boxes):
-    dlg = _gee(window)
+def _wait(dlg, qtbot):
+    qtbot.waitUntil(lambda: dlg.download_btn.isEnabled(), timeout=20000)
+
+
+def test_gee_defaults_and_choices(window, tmp_path, monkeypatch):
+    from qgis.PyQt.QtWidgets import QPushButton
+
+    from vgeoint.app.dialogs import google_earth_engine
+    from vgeoint.app.dialogs.google_earth_engine import DATASETS, GoogleEarthEngineDialog
+
+    from vgeoint.common.utils import settings
+
+    settings().remove("GoogleEarthEngine")
+    monkeypatch.setattr(google_earth_engine, "credentials_path", lambda: tmp_path / "none")
+    dlg = GoogleEarthEngineDialog(window, window.map_canvas, window.layer_tree_view)
     assert dlg.windowTitle() == "Tải ảnh từ Google Earth Engine"
-    assert (dlg.width(), dlg.height()) == (600, 700)
-    assert dlg.project_id_edit.text() == "root-clover-471000-e0"
-    assert dlg.region_edit.text() == "105.7,20.9,106.0,21.1"
-    assert dlg.output_path_edit.text() == "downloads"
-    assert dlg.auto_add_output_files()
-    assert "🔧 Giao diện Google Earth Engine đã sẵn sàng" in dlg.log_text_edit.toPlainText()
-    assert not hasattr(dlg, "complete")
+    assert not dlg.is_logged_in and "Chưa đăng nhập" in dlg.login_label.text()
+    assert dlg.project_id() == "root-clover-471000-e0"
+    assert dlg.region_text() == "105.7,20.9,106,21.1"  # empty map: the C++ default region
+    assert dlg.auto_add_output_files() and not hasattr(dlg, "complete")
+    assert [dlg.dataset_combo.itemText(i) for i in range(dlg.dataset_combo.count())] == [d.name for d in DATASETS]
+    assert dlg.bands() == "B4,B3,B2" and dlg.scale_spin.value() == 10 and dlg.method() == "least_cloudy"
+    assert "MB" in dlg.estimate_label.text()
 
-    dlg.download_btn.click()
+    dlg.dataset_combo.setCurrentIndex(1)  # Landsat 9
+    assert dlg.bands() == "SR_B4,SR_B3,SR_B2" and dlg.scale_spin.value() == 30
+    dlg.dataset_combo.setCurrentIndex(4)  # DEM: no dates, no cloud, no search
+    assert not dlg.start_date.isEnabled() and not dlg.cloud_spin.isEnabled() and not dlg.search_btn.isEnabled()
+    assert dlg.method() == "mosaic"
+    # Labels of the QGIS extent widget are in Vietnamese
+    texts = [w.text() for w in dlg.extent_widget.findChildren(QPushButton) if w.isVisibleTo(dlg)]
+    assert "Vẽ trên bản đồ" in texts and "Layout Map" not in texts
+
+
+def test_gee_estimate_warns_over_download_limit(gee):
+    from qgis.core import QgsRectangle
+
+    gee.extent_widget.setOutputExtentFromUser(QgsRectangle(105, 20, 107, 22), gee.extent_widget.outputCrs())
+    assert "Quá giới hạn" in gee.estimate_label.text()
+    gee.scale_spin.setValue(200)
+    assert "Quá giới hạn" not in gee.estimate_label.text()
+
+
+def test_gee_validation(gee, boxes):
+    gee.is_logged_in = False
+    gee.download_btn.click()
     assert boxes[-1] == ("warning", "Cảnh báo", "Vui lòng đăng nhập trước!")
-    dlg.is_logged_in = True
-    dlg.download_btn.click()
-    assert boxes[-1] == ("warning", "Cảnh báo", "Vui lòng nhập ID dữ liệu!")
-    dlg.data_id_edit.setText("x")
-    dlg.region_edit.clear()
-    dlg.download_btn.click()
-    assert boxes[-1] == ("warning", "Cảnh báo", "Vui lòng nhập vùng quan tâm!")
-
-    dlg.clear_log_btn.click()
-    assert dlg.log_text_edit.toPlainText().endswith("🔧 Log đã được xóa")
+    gee.is_logged_in = True
+    gee.project_combo.setCurrentText("")
+    gee.download_btn.click()
+    assert boxes[-1] == ("warning", "Cảnh báo", "Vui lòng nhập Project!")
+    gee.project_combo.setCurrentText("p")
+    gee.start_date.setDate(gee.end_date.date().addDays(1))
+    gee.search_btn.click()
+    assert boxes[-1] == ("warning", "Cảnh báo", "Ngày bắt đầu phải trước ngày kết thúc!")
 
 
 @pytest.mark.parametrize("code, ok", [("print('ok')", True), ("import sys; sys.exit(1)", False)])
-def test_gee_login(window, boxes, qtbot, monkeypatch, code, ok):
+def test_gee_login(gee, boxes, qtbot, monkeypatch, code, ok):
     from vgeoint.app.dialogs import google_earth_engine
 
-    monkeypatch.setenv("VGEOINT_AI_PYTHON", sys.executable)
     monkeypatch.setattr(google_earth_engine, "AUTH_ARGUMENTS", ["-c", code])
-    dlg = _gee(window)
-    dlg.login_btn.click()
+    gee.is_logged_in = False
+    gee.login_btn.click()
     qtbot.waitUntil(lambda: len(boxes) > 0, timeout=20000)
     if ok:
         assert boxes == [("information", "Thành công", "Đăng nhập thành công!")]
-        assert dlg.is_logged_in and dlg.login_btn.text() == "Đã đăng nhập" and not dlg.login_btn.isEnabled()
+        assert gee.is_logged_in and gee.login_btn.text() == "Đăng nhập lại"
     else:
         assert boxes == [("warning", "Lỗi", "Đăng nhập thất bại!")]
-        assert not dlg.is_logged_in and dlg.login_btn.isEnabled()
+        assert not gee.is_logged_in and gee.login_btn.text() == "Đăng nhập"
+    assert gee.login_btn.isEnabled()
 
 
 @pytest.mark.skipif(not AI_PYTHON.exists(), reason="ai environment not installed")
@@ -581,48 +642,97 @@ def test_gee_auth_command_is_the_earthengine_cli(qgis_app):
     assert "usage: earthengine authenticate" in out.stdout and "--force" in out.stdout
 
 
-@pytest.mark.parametrize("data_id", ["COPERNICUS/S2/20250101", "noevent"])
-def test_gee_download(window, tmp_path, fake_scripts, boxes, qtbot, data_id):
-    fake_scripts("gee_download.py", FAKE_GEE)
-    dlg = _gee(window)
-    dlg.is_logged_in = True
-    dlg.data_id_edit.setText(data_id)
-    out_dir = tmp_path / "dl"
-    dlg.output_path_edit.setText(str(out_dir))
-    dlg.download_btn.click()
-    assert not dlg.download_btn.isEnabled() and not dlg.progress_bar.isHidden()
-    qtbot.waitUntil(lambda: dlg.download_btn.isEnabled(), timeout=20000)
+def test_gee_check_project_remembers_it(gee, boxes, qtbot):
+    from vgeoint.common.utils import settings
 
-    assert json.loads((out_dir / "args.json").read_text()) == [
-        "--data_id", data_id, "--region", "105.7,20.9,106.0,21.1", "--output", str(out_dir),
-        "--project_id", "root-clover-471000-e0",
+    gee.check_project_btn.click()
+    _wait(gee, qtbot)
+    assert gee.args()[:2] == ["--project_id", "my-project"] and "--check" in gee.args()
+    assert boxes[-1][0] == "information" and "my-project" in boxes[-1][2]
+    assert settings().value("GoogleEarthEngine/Projects").split("|")[0] == "my-project"
+
+    gee.project_combo.setCurrentText("bad-project")
+    gee.check_project_btn.click()
+    _wait(gee, qtbot)
+    assert boxes[-1][0] == "warning" and "Caller does not have required permission" in boxes[-1][2]
+
+
+def test_gee_search_then_download_selected_image(gee, boxes, qtbot):
+    from qgis.PyQt.QtCore import QDate
+
+    gee.start_date.setDate(QDate(2025, 1, 1))
+    gee.end_date.setDate(QDate(2025, 3, 31))
+    gee.cloud_spin.setValue(30)
+    gee.search_btn.click()
+    _wait(gee, qtbot)
+    assert gee.args() == [
+        "--project_id", "my-project", "--region", "105.7,20.9,106,21.1",
+        "--collection", "COPERNICUS/S2_SR_HARMONIZED", "--start", "2025-01-01", "--end", "2025-04-01",
+        "--cloud_property", "CLOUDY_PIXEL_PERCENTAGE", "--max_cloud", "30", "--list",
     ]
-    log = dlg.log_text_edit.toPlainText()
-    assert "✓ [12:00:02] [OK] Completed!" in log
-    assert "ℹ️ [12:00:00] [INFO] Data ID:" in log
-    assert "📄 File đã tải: COPERNICUS_S2_20250101.tif" in log
-    assert "✅ Ảnh vệ tinh hợp lệ - 30x20 pixels" in log
-    assert "Mã thoát: 0" in log and "Trạng thái: Normal" in log
-    assert dlg.status_label.text() == "Hoàn thành thành công!"
-    assert boxes[-1][0] == "information" and "File: COPERNICUS_S2_20250101.tif" in boxes[-1][2]
+    assert gee.images_table.rowCount() == 2 and gee.images_table.item(1, 1).text() == "4.2 %"
+    assert gee.status_label.text() == "Tìm thấy 3 ảnh (hiện 2 ảnh ít mây nhất)"
+
+    gee.images_table.selectRow(1)
+    assert "20250301T031539_T48QWJ" in gee.selection_label.text()
+    gee.download_btn.click()
+    _wait(gee, qtbot)
+    args = gee.args()
+    assert args[args.index("--data_id") + 1] == "COPERNICUS/S2_SR_HARMONIZED/20250301T031539_T48QWJ"
+    assert args[args.index("--bands") + 1] == "B4,B3,B2" and "--collection" not in args
     assert layer_names() == ["COPERNICUS_S2_20250101"]
-    assert [Path(p) for p in dlg.output_files] == [out_dir / "COPERNICUS_S2_20250101.tif"]
+    assert boxes[-1][0] == "information" and "COPERNICUS_S2_20250101.tif" in boxes[-1][2]
+
+    # Changing the dates drops the images found for the old dates
+    gee.start_date.setDate(QDate(2024, 1, 1))
+    assert gee.images_table.rowCount() == 0 and gee.images_table.isHidden()
 
 
-def test_gee_download_failure(window, tmp_path, fake_scripts, boxes, qtbot):
-    fake_scripts("gee_download.py", FAKE_GEE)
-    dlg = _gee(window)
-    dlg.is_logged_in = True
-    dlg.data_id_edit.setText("bad")
-    dlg.output_path_edit.setText(str(tmp_path / "dl"))
-    dlg.download_btn.click()
-    qtbot.waitUntil(lambda: dlg.download_btn.isEnabled(), timeout=20000)
-    log = dlg.log_text_edit.toPlainText()
-    assert "❌ [12:00:01] [ERROR] Image not found" in log
-    assert "❌ ee.EEException: not found" in log
-    assert dlg.status_label.text() == "Tải dữ liệu thất bại!"
-    assert boxes[-1][0] == "critical" and "Mã lỗi: 1" in boxes[-1][2]
+def test_gee_download_by_collection_and_advanced_id(gee, boxes, qtbot, tmp_path):
+    gee.dataset_combo.setCurrentIndex(3)  # Sentinel-1: no cloud filter, instrument filter
+    gee.method_combo.setCurrentIndex(1)  # median
+    gee.download_btn.click()
+    _wait(gee, qtbot)
+    args = gee.args()
+    assert args[args.index("--collection") + 1] == "COPERNICUS/S1_GRD"
+    assert args[args.index("--method") + 1] == "median" and args[args.index("--filter") + 1] == "instrumentMode=IW"
+    assert "--cloud_property" not in args and args[args.index("--bands") + 1] == "VV,VH"
+    assert args[args.index("--output") + 1] == str(tmp_path / "dl")
+
+    gee.data_id_edit.setText("USERS/me/my_image")
+    gee.bands_edit.setText("b1")
+    gee.download_btn.click()
+    _wait(gee, qtbot)
+    args = gee.args()
+    assert args[args.index("--data_id") + 1] == "USERS/me/my_image" and args[args.index("--bands") + 1] == "b1"
+
+
+def test_gee_download_failure_shows_reason(gee, boxes, qtbot):
+    gee.data_id_edit.setText("bad")
+    gee.download_btn.click()
+    _wait(gee, qtbot)
+    assert "❌ ee.EEException: not found" in gee.log_text_edit.toPlainText()
+    assert gee.status_label.text() == "Tải dữ liệu thất bại!"
+    assert boxes[-1][0] == "critical" and "Image not found" in boxes[-1][2]
     assert layer_names() == []
+
+
+def test_gee_draw_region_on_map(gee, qtbot):
+    """“Vẽ trên bản đồ” hides the dialog and puts an extent tool on the map; drawing brings it back."""
+    from qgis.core import QgsRectangle
+
+    window = gee.parent()
+    previous_tool = window.map_canvas.mapTool()
+    gee.show()
+    gee.extent_widget.setOutputExtentFromDrawOnCanvas()
+    assert gee.isHidden()
+    tool = window.map_canvas.mapTool()
+    assert tool is not previous_tool and type(tool).__name__ == "QgsMapToolExtent"
+    window.map_canvas.setDestinationCrs(gee.extent_widget.outputCrs())
+    tool.extentChanged.emit(QgsRectangle(105.80, 21.00, 105.85, 21.05))
+    assert gee.isVisible()
+    assert gee.region_text() == "105.8,21,105.85,21.05"
+    gee.close()
 
 
 # ======================================================================= real runs (slow)

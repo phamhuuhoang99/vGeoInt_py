@@ -7,6 +7,7 @@ the module; until then the action shows a "not ported yet" message instead of fa
 import importlib
 
 from qgis.core import Qgis, QgsRasterLayer, QgsVectorLayer
+from qgis.PyQt.QtCore import Qt
 
 from vgeoint.app.models.image_enhancement_model import ImageEnhancementModel
 from vgeoint.app.models.layer_panel_model import LayerPanelModel
@@ -94,7 +95,7 @@ class MainController:
         self.image_enhancement_model.full_histogram_stretch()
 
     # --------------------------------------------------------------- dialogs
-    def _exec_dialog(self, module: str, class_name: str, *args, modal_exec: bool = True):
+    def _exec_dialog(self, module: str, class_name: str, *args, modal_exec: bool = True, modal: bool = True):
         """Open vgeoint.app.dialogs.<module>.<class_name>(*args)."""
         try:
             mod = importlib.import_module(f"vgeoint.app.dialogs.{module}")
@@ -113,7 +114,7 @@ class MainController:
         # checkbox never worked; connect it for every dialog that reports output files.
         if hasattr(dialog, "complete") and hasattr(dialog, "auto_add_output_files"):
             dialog.complete.connect(lambda d=dialog: self.add_output_files(d))
-        dialog.setModal(True)
+        dialog.setModal(modal)
         if modal_exec:
             dialog.exec()
             dialog.deleteLater()
@@ -197,7 +198,14 @@ class MainController:
         self._std_dialog("auto_classification", "AutoClassificationDialog")
 
     def google_earth_engine(self):
-        self._std_dialog("google_earth_engine", "GoogleEarthEngineDialog")
+        # Not modal: the map stays usable to pan/zoom and to draw the region of interest.
+        mw = self.main_window
+        dialog = self._exec_dialog(
+            "google_earth_engine", "GoogleEarthEngineDialog", mw, mw.map_canvas, mw.layer_tree_view,
+            modal_exec=False, modal=False,
+        )
+        if dialog is not None:
+            dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
     def vector_labeling(self, layer: QgsVectorLayer):
         mw = self.main_window
