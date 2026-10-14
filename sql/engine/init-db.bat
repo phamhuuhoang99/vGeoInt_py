@@ -9,7 +9,6 @@ set PATH=%PATH%;%PGBIN%
 set DBNAME=vGeoEngine
 set PGCLIENTENCODING=utf-8
 chcp 65001
-set PGPASSWORD=vgeoint2018@CBD
 createdb -U %USER% %DBNAME%
 psql -U %USER% -d %DBNAME% -f Group.sql
 psql -U %USER% -d %DBNAME% -f Class.sql

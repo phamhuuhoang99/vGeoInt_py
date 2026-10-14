@@ -2,22 +2,126 @@
 
 Bản viết lại của vGeoInt_v2 (C++) bằng Python + PyQGIS (QGIS 4, Qt6). Gồm 3 app: **vGeoInt** (chính), **vGeoCatalog**, **vGeoEngine**.
 
-## Cài đặt
+## Cài từ đầu trên máy Windows mới
 
-Chỉ cần [Pixi](https://pixi.sh) (`winget install prefix-dev.pixi`). Không cần Visual Studio, OSGeo4W hay OpenCV cài sẵn.
+Yêu cầu: Windows 10/11 64-bit, khoảng 10 GB trống (15 GB nếu dùng AI). Không cần Visual Studio, OSGeo4W,
+Python hay OpenCV cài sẵn: mọi thứ (QGIS, Qt, GDAL, OpenCV...) được Pixi tải vào thư mục `.pixi/` của repo.
 
-```bash
-pixi install          # tải QGIS, Qt, GDAL, OpenCV... vào .pixi/
-pixi run check-env    # kiểm tra môi trường
-pixi run app          # chạy app chính
-pixi run catalog      # vGeoCatalog
-pixi run engine       # vGeoEngine
-pixi run test         # chạy test
+### 1. Cài Git và Pixi
+
+Mở **PowerShell** và chạy:
+
+```powershell
+winget install --id Git.Git -e
+winget install --id prefix-dev.pixi -e
 ```
 
-Phần AI chạy trong môi trường riêng: `pixi install -e ai`.
+Không có `winget` thì tải Git ở https://git-scm.com/download/win và cài Pixi bằng
+`iwr -useb https://pixi.sh/install.ps1 | iex`.
 
-Model weights không nằm trong git. Đặt vào `models/` hoặc trỏ biến môi trường `VGEOINT_MODELS_DIR` tới thư mục models của app cũ.
+**Đóng PowerShell và mở lại** để nhận PATH mới, rồi kiểm tra:
+
+```powershell
+git --version
+pixi --version
+```
+
+Tuỳ chọn: ổ C ít chỗ thì đặt bộ đệm tải của Pixi sang ổ khác (mở lại PowerShell sau khi đặt):
+
+```powershell
+setx PIXI_CACHE_DIR D:\pixi-cache
+```
+
+### 2. Tải code
+
+```powershell
+cd D:\
+git clone https://github.com/phamhuuhoang99/vGeoInt_py.git
+cd vGeoInt_py
+```
+
+### 3. Cài môi trường và chạy
+
+```powershell
+pixi install          # lần đầu tải ~2 GB (QGIS, Qt, GDAL, OpenCV...) vào .pixi\
+pixi run check-env    # kiểm tra môi trường + build icon (.rcc)
+pixi run app          # app chính vGeoInt
+```
+
+Các lệnh khác:
+
+```powershell
+pixi run catalog      # vGeoCatalog (cần PostgreSQL, xem bước 5)
+pixi run engine       # vGeoEngine  (cần PostgreSQL, xem bước 5)
+pixi run test         # chạy test
+pixi run build-resources   # build lại icon sau khi sửa resources\*.qrc
+```
+
+Luôn chạy các lệnh `pixi` trong thư mục `vGeoInt_py` (nơi có `pixi.toml`). Log và lỗi crash được ghi vào
+`logs\<app>_log.txt` và `logs\<app>_crash.txt`.
+
+### 4. Dữ liệu không có trong git (tuỳ chọn)
+
+Các thư mục sau quá lớn nên không có trong git. Lấy từ máy/app cũ:
+
+| Thư mục | Nội dung | Cần cho |
+|---|---|---|
+| `models\` | model AI (`vGeoInt_v2\models` của app cũ) | các chức năng AI |
+| `data\catalog\` | bản đồ nền (`vGeoCatalog\data` của app cũ: `Data.shp`, `Data.ras`...) | vGeoCatalog |
+
+Có thể copy vào, hoặc tạo junction tới thư mục sẵn có (trong `cmd`):
+
+```bat
+mklink /J models D:\vGeoInt_v2\vGeoInt_v2\models
+mklink /J data\catalog D:\vGeoInt_v2\vGeoInt_v2\vGeoCatalog\data
+```
+
+Hoặc đặt biến môi trường `VGEOINT_MODELS_DIR` / `VGEOINT_CATALOG_DATA` trỏ tới các thư mục đó.
+
+Phần AI chạy trong môi trường riêng (PyTorch, ultralytics... vài GB):
+
+```powershell
+pixi install -e ai
+```
+
+### 5. Cơ sở dữ liệu cho vGeoCatalog / vGeoEngine (tuỳ chọn)
+
+App chính không cần database. vGeoCatalog và vGeoEngine cần PostgreSQL + PostGIS:
+
+1. Cài PostgreSQL (https://www.postgresql.org/download/windows/), trong Stack Builder chọn thêm
+   **PostGIS**. Nhớ mật khẩu user `postgres`.
+2. Tạo 2 database từ các script trong `sql\` (PowerShell, trong thư mục `vGeoInt_py`; sửa số phiên bản
+   trong đường dẫn `bin` cho đúng):
+
+   ```powershell
+   $env:Path += ";C:\Program Files\PostgreSQL\16\bin"
+   $env:PGPASSWORD = "<mật khẩu postgres>"
+   $env:PGCLIENTENCODING = "utf-8"
+
+   createdb -U postgres vGeoCatalog
+   foreach ($f in "command", "Countries", "Regions") { psql -U postgres -d vGeoCatalog -q -f "sql\catalog\$f.sql" }
+
+   createdb -U postgres vGeoEngine
+   foreach ($f in "Group", "Class", "Type", "Object", "Note", "Image", "ImageDetail", "Video", "VideoDetail",
+                  "Document", "DocumentDetail", "Account", "Aircraft", "Ship", "Tank", "Rocket") {
+       psql -U postgres -d vGeoEngine -q -f "sql\engine\$f.sql"
+   }
+   ```
+
+   vGeoEngine có sẵn tài khoản `admin` (mật khẩu như app cũ).
+3. Chạy `pixi run catalog` / `pixi run engine`: lần đầu app hỏi mật khẩu database và lưu lại. Server khác
+   `localhost:5432` / user khác `postgres` thì đặt biến môi trường `VGEOINT_DB_HOST`, `VGEOINT_DB_PORT`,
+   `VGEOINT_DB_USER`, `VGEOINT_DB_PASSWORD` (`VGEOINT_DB_NAME` để đổi tên database).
+
+Test database (`pixi run test`) tự dựng PostGIS trong **Docker** (`postgis/postgis:16-3.4`); không có
+Docker Desktop thì các test đó bị bỏ qua.
+
+### Lỗi thường gặp
+
+- `pixi : The term 'pixi' is not recognized`: chưa mở lại PowerShell sau khi cài Pixi.
+- `could not find pixi.toml`: đang đứng sai thư mục, `cd` vào `vGeoInt_py`.
+- Không thấy icon trên toolbar: chạy `pixi run build-resources`.
+- Chức năng AI báo thiếu môi trường / model: chạy `pixi install -e ai` và kiểm tra thư mục `models\` (bước 4).
 
 ## Cấu trúc
 
@@ -29,14 +133,8 @@ Model weights không nằm trong git. Đặt vào `models/` hoặc trỏ biến 
 
 ## Môi trường AI
 
-```bash
-pixi install -e ai      # PyTorch, ultralytics, rasterio, onnxruntime... (vài GB)
-```
-
 Các dialog AI chạy script trong `src/vgeoint/ai/scripts` bằng python của môi trường `ai`
-(`vgeoint.ai.runner.ScriptRunner`). Model đặt trong `models/` — có thể là junction tới thư mục
-models sẵn có, ví dụ: `mklink /J models ..\vGeoInt_v2\vGeoInt_v2\models` — hoặc đặt biến
-`VGEOINT_MODELS_DIR`.
+(`vgeoint.ai.runner.ScriptRunner`), model lấy từ `models/` (xem bước 4 ở trên).
 
 Test chạy model thật: `pixi run pytest -m slow`.
 
