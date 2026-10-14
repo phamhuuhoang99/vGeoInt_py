@@ -199,6 +199,9 @@
      <property name="text">
       <string>Tự động mở ảnh kết quả khi hoàn thành</string>
      </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
     </widget>
    </item>
   </layout>

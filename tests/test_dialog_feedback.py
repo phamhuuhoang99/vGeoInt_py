@@ -98,3 +98,16 @@ def test_band_math_notifies(window, raster, tmp_path, monkeypatch):
     dlg.apply()
     level, _title, text = _last_message(window)
     assert level == Qgis.MessageLevel.Success and "bm.tif" in text
+
+
+@pytest.mark.parametrize("module, cls", [
+    ("band_math", "BandMathDialog"), ("change_detection", "ChangeDetectionDialog"),
+    ("color_space_convertion", "ColorSpaceConvertionDialog"), ("image_concatenating", "ImageConcatenatingDialog"),
+    ("image_filter", "ImageFilterDialog"), ("image_split", "ImageSplitDialog"),
+])
+def test_auto_open_result_checked_by_default(window, module, cls):
+    import importlib
+
+    dialog_class = getattr(importlib.import_module(f"vgeoint.app.dialogs.{module}"), cls)
+    dlg = dialog_class(window, window.map_canvas, window.layer_tree_view)
+    assert dlg.autoAddOutputChbx.isChecked() and dlg.auto_add_output_files()
