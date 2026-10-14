@@ -395,3 +395,14 @@ def test_start_editing_without_vector_layers_warns(window):
     window.toggle_editing_act.trigger()
     assert not window.toggle_editing_act.isChecked() and not window.create_features_act.isEnabled()
     assert "Chưa có lớp vector" in window.message_bar.currentItem().text()
+
+
+def test_active_map_tool_button_is_checked(window):
+    assert window.tool_identify_feature.action().isChecked()
+    window.map_canvas.setMapTool(window.tool_pan_map)
+    assert window.tool_pan_map.action().isChecked() and not window.tool_identify_feature.action().isChecked()
+    assert "QToolButton:checked" in window.styleSheet()
+
+
+def test_selected_layer_is_highlighted(window):
+    assert "item:selected" in window.layer_tree_view.styleSheet()

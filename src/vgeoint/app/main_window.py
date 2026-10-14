@@ -24,6 +24,7 @@ from qgis.gui import (
     QgsMapCanvas,
     QgsMapCanvasAnnotationItem,
     QgsMapOverviewCanvas,
+    QgsMapTool,
     QgsMapToolPan,
     QgsMapToolZoom,
     QgsMessageBar,
@@ -87,6 +88,16 @@ SLIDER_STYLE = (
     "QSlider::handle : horizontal : disabled{ background: #eee; border: 1px solid #aaa; border-radius: 4px; }"
 )
 LINE_EDIT_STYLE = "QLineEdit { border: 1px solid #777; border-radius: 4px; margin-left: 4px; margin-right: 4px;}"
+TOOL_BUTTON_STYLE = (
+    "QToolBar QToolButton { border: 1px solid transparent; border-radius: 3px; padding: 2px; }"
+    "QToolBar QToolButton:hover { background-color: #e5f3ff; border-color: #cce8ff; }"
+    "QToolBar QToolButton:checked { background-color: #cce8ff; border-color: #3d8ee0; }"
+    "QToolBar QToolButton:pressed { background-color: #99d1ff; }"
+)
+LAYER_TREE_STYLE = (
+    "QgsLayerTreeView::item:selected { background-color: #cce8ff; color: black; }"
+    "QgsLayerTreeView::item:selected:active { background-color: #99d1ff; }"
+)
 
 
 def _slider_style(color: str) -> str:
@@ -151,6 +162,13 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         self.create_module_tool_bar()
         self.create_connections()
         self.load_settings()
+
+        # The active map tool shows as a pressed (blue) toolbar button: QgsMapTool checks its action
+        # on activation, which needs checkable actions.
+        for tool in vars(self).values():
+            if isinstance(tool, QgsMapTool) and tool.action() is not None:
+                tool.action().setCheckable(True)
+        self.setStyleSheet(TOOL_BUTTON_STYLE)
 
         # Thiết lập map tool mặc định
         self.map_canvas.setMapTool(self.tool_identify_feature)
@@ -347,6 +365,9 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
 
         self.layer_tree_view = QgsLayerTreeView(self)
         self.layer_tree_view.setModel(model)
+        # The Qt 6 Windows style barely shows the selected row (none once the tree loses focus):
+        # always highlight the selected layer in blue.
+        self.layer_tree_view.setStyleSheet(LAYER_TREE_STYLE)
         self.layer_panel_menu = LayerPanelMenu(self.layer_tree_view, self.map_canvas, self.main_controller)
         self.layer_tree_view.setMenuProvider(self.layer_panel_menu)
 
