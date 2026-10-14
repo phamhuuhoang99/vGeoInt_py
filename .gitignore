@@ -10,3 +10,4 @@ resources/*.rcc
 data/
 build/
 dist/
+/*.aux.xml
