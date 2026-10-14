@@ -88,6 +88,12 @@ SLIDER_STYLE = (
     "QSlider::handle : horizontal : disabled{ background: #eee; border: 1px solid #aaa; border-radius: 4px; }"
 )
 LINE_EDIT_STYLE = "QLineEdit { border: 1px solid #777; border-radius: 4px; margin-left: 4px; margin-right: 4px;}"
+# Tighter than the Windows 11 style's wide menu bar items.
+MENU_BAR_STYLE = (
+    "QMenuBar::item { padding: 4px 8px; margin: 0px; border-radius: 4px; }"
+    "QMenuBar::item:selected { background-color: #e5f3ff; }"
+    "QMenuBar::item:pressed { background-color: #cce8ff; }"
+)
 TOOL_BUTTON_STYLE = (
     "QToolBar QToolButton { border: 1px solid transparent; border-radius: 3px; padding: 2px; }"
     "QToolBar QToolButton:hover { background-color: #e5f3ff; border-color: #cce8ff; }"
@@ -168,7 +174,7 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
         for tool in vars(self).values():
             if isinstance(tool, QgsMapTool) and tool.action() is not None:
                 tool.action().setCheckable(True)
-        self.setStyleSheet(TOOL_BUTTON_STYLE)
+        self.setStyleSheet(TOOL_BUTTON_STYLE + MENU_BAR_STYLE)
 
         # Thiết lập map tool mặc định
         self.map_canvas.setMapTool(self.tool_identify_feature)
