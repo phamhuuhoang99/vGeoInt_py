@@ -121,6 +121,45 @@ METHOD_LABELS = {
     "mosaic": "Ghép các ảnh (ảnh mới nhất nằm trên)",
 }
 
+_TOO_LARGE = "Vùng quá lớn để tải trực tiếp: thu nhỏ vùng hoặc tăng độ phân giải (số mét lớn hơn)."
+_IMAGE_NOT_FOUND = "Không tìm thấy ảnh với ID đã nhập (hoặc tài khoản không có quyền xem ảnh đó)."
+_OFFLINE = "Không kết nối được Internet / máy chủ Google."
+# (text in the Earth Engine error, explanation for the user); {project} is filled in.
+_ERROR_HINTS = [
+    ("does not have required permission to use project",
+     "Tài khoản đang đăng nhập không có quyền dùng project “{project}”. Hãy nhập ID project của chính bạn "
+     "(đã đăng ký Earth Engine), hoặc nhờ chủ project cấp quyền cho tài khoản này."),
+    ("not registered to use earth engine",
+     "Project “{project}” chưa đăng ký dùng Earth Engine. Đăng ký tại " + REGISTER_URL),
+    ("has not been used in project",
+     "Project “{project}” chưa bật Earth Engine API. Đăng ký/bật tại " + REGISTER_URL),
+    ("not found or deleted",
+     "Không tìm thấy project “{project}”. Kiểm tra lại ID project (là ID, không phải tên hiển thị)."),
+    ("invalid_grant", "Phiên đăng nhập Google đã hết hạn hoặc bị thu hồi: bấm “Đăng nhập lại”."),
+    ("please authorize access", "Chưa đăng nhập Earth Engine trên máy này: bấm “Đăng nhập”."),
+    ("request size", _TOO_LARGE),
+    ("must be less than or equal to", _TOO_LARGE),
+    ("no image matches",
+     "Không có ảnh nào khớp khoảng thời gian / độ mây / vùng: nới khoảng thời gian hoặc độ mây."),
+    ("image asset", _IMAGE_NOT_FOUND),
+    ("not found", _IMAGE_NOT_FOUND),
+    ("band pattern", "Ảnh không có kênh đã chọn: kiểm tra Tổ hợp kênh / ô Kênh."),
+    ("nameresolutionerror", _OFFLINE),
+    ("connectionerror", _OFFLINE),
+]
+
+
+def explain_error(lines: list[str], project: str) -> str:
+    """The script's first error line (the cause; later lines are generic hints), explained in Vietnamese."""
+    if not lines:
+        return "Không rõ lý do: xem mục “Chi tiết tiến trình”."
+    detail = lines[0] if len(lines[0]) <= 300 else lines[0][:300] + "…"
+    text = " ".join(lines).lower()
+    for needle, hint in _ERROR_HINTS:
+        if needle in text:
+            return f"{hint.format(project=project)}\n\nChi tiết: {detail}"
+    return detail
+
 
 def credentials_path() -> Path:
     """Where `earthengine authenticate` stores the refresh token (same path on Windows)."""
@@ -690,7 +729,7 @@ class GoogleEarthEngineDialog(QDialog):
         status = self.status_label.text()
         self._set_busy(False)
         ok = not crashed and exit_code == 0
-        reason = self._error_lines[-1] if self._error_lines else "Xem Chi tiết tiến trình"
+        reason = explain_error(self._error_lines, self.project_id())
 
         if task == "check":
             if ok:
@@ -701,8 +740,7 @@ class GoogleEarthEngineDialog(QDialog):
                 self.status_label.setText("Project không dùng được")
                 QMessageBox.warning(
                     self, "Project",
-                    f"Không dùng được project “{self.project_id()}”.\n\n{reason}\n\n"
-                    "Kiểm tra ID project (không phải tên hiển thị) và project đã đăng ký Earth Engine chưa.",
+                    f"Không dùng được project “{self.project_id()}”.\n\n{reason}",
                 )
             return
         if task == "list":
@@ -720,7 +758,7 @@ class GoogleEarthEngineDialog(QDialog):
             self.add_log("❌ Quá trình tải dữ liệu thất bại!", "ERROR")
             QMessageBox.critical(
                 self, "Lỗi",
-                f"Tải dữ liệu thất bại!\n\nMã lỗi: {exit_code}\nThời gian xử lý: {time_str}\n\n{reason}",
+                f"Tải dữ liệu thất bại!\n\n{reason}",
             )
             return
 

@@ -814,3 +814,18 @@ def test_image_blending_real_otb(window, tmp_path, boxes, qtbot, monkeypatch):
     result = gdal.Open(str(out))
     assert (result.RasterCount, result.RasterXSize, result.RasterYSize) == (4, 96, 64)
     assert "Pansharpened Image" in layer_names()
+
+
+def test_gee_explain_error_uses_the_cause_not_the_generic_hint():
+    from vgeoint.app.dialogs.google_earth_engine import explain_error
+
+    lines = [
+        "Cannot connect to project root-clover-471000-e0: Caller does not have required permission to use project "
+        "root-clover-471000-e0. Grant the caller the roles/serviceusage.serviceUsageConsumer role",
+        "Check the Project ID (Earth Engine must be enabled for it) or log in again",
+    ]
+    text = explain_error(lines, "root-clover-471000-e0")
+    assert text.startswith("Tài khoản đang đăng nhập không có quyền dùng project “root-clover-471000-e0”")
+    assert "Chi tiết: Cannot connect to project" in text
+    assert explain_error(["something odd"], "p") == "something odd"
+    assert "Chi tiết tiến trình" in explain_error([], "p")
