@@ -93,7 +93,7 @@ App chính không cần database. vGeoCatalog và vGeoEngine cần PostgreSQL + 
 
 ```powershell
 pixi run db-up      # lần đầu: tạo mật khẩu ngẫu nhiên trong .env, tải image postgis/postgis:16-3.4,
-                    # tạo database vGeoCatalog + vGeoEngine từ sql\ (~1 phút)
+                    # tạo database vGeoCatalog + vGeoEngine (có sẵn dữ liệu) từ sql\ (~1 phút)
 pixi run catalog
 pixi run engine
 pixi run db-down    # dừng server (dữ liệu vẫn giữ trong volume vgeoint-pgdata)
@@ -105,6 +105,10 @@ pixi run db-down    # dừng server (dữ liệu vẫn giữ trong volume vgeoin
 - App đọc mật khẩu từ `.env` (không có trong git) nên không hỏi mật khẩu. Không xoá file này khi còn dùng
   volume cũ.
 - Xoá hẳn dữ liệu để tạo lại từ `sql\`: `docker compose down -v` rồi `pixi run db-up`.
+- `vGeoEngine` được nạp từ `sql\engine\init_vgeoengine.sql` (bản dump của bộ cài cũ: nhóm/loại/kiểu đối
+  tượng, máy bay, tàu, xe tăng, tên lửa, 438 ảnh, 28 video, 164 tài liệu, tài khoản `admin` và `user`).
+  Đường dẫn media trong dữ liệu có dạng `vGeoInt_DB/...` nên cần thư mục `vGeoInt_DB` của bộ cài cũ để
+  mở được ảnh/video/tài liệu gốc (ảnh thu nhỏ đã nằm sẵn trong database).
 
 **Cách 2: cài PostgreSQL trực tiếp.**
 
