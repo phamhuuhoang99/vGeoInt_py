@@ -228,16 +228,43 @@ def test_color_space_convert(color_dialog, sample_raster, tmp_path, src_cs, dst_
     assert "thành công" in dlg.noticeLbl.text()
 
 
-def test_color_space_errors(color_dialog, tmp_path, window, qtbot):
+def test_color_space_errors(color_dialog, sample_raster, tmp_path, window, qtbot):
+    """Every failure says why, in the dialog and on the message bar."""
     dlg = color_dialog
-    dlg.apply()
-    assert "Chưa chọn thư mục lưu kết quả" in dlg.noticeLbl.text()
 
-    dlg.fromColorCbx.setCurrentText("HSV")
-    dlg.toColorCbx.setCurrentText("HLS")  # không hỗ trợ
-    dlg.outputLedr.setText(str(tmp_path / "x.tif"))
+    def reason():
+        bar = window.message_bar.currentItem().text()
+        assert "Chuyển đổi thất bại: " in dlg.noticeLbl.text() and "Chuyển đổi thất bại: " in bar
+        return dlg.noticeLbl.text()
+
     dlg.apply()
-    assert "Chuyển đổi thất bại" in dlg.noticeLbl.text()
+    assert "Chưa chọn file lưu kết quả" in reason()
+
+    dlg.outputLedr.setText(str(tmp_path / "x.tif"))
+    dlg.fromColorCbx.setCurrentText("HSV")
+    dlg.toColorCbx.setCurrentText("HLS")
+    dlg.apply()
+    assert "Không hỗ trợ chuyển HSV sang HLS" in reason()
+
+    dlg.toColorCbx.setCurrentText("HSV")
+    dlg.apply()
+    assert "giống nhau" in reason()
+
+    dlg.fromColorCbx.setCurrentText("RGB")
+    dlg.outputLedr.setText(str(tmp_path / "khong_co" / "x.tif"))
+    dlg.apply()
+    assert "Thư mục lưu kết quả không tồn tại" in reason()
+
+
+def test_color_space_reports_band_count_and_pixel_type(color_dialog, tmp_path, window):
+    from qgis.core import QgsRasterLayer
+
+    dlg = color_dialog
+    out = str(tmp_path / "x.tif")
+    one_band = QgsRasterLayer(make_raster(tmp_path / "mot_kenh.tif", bands=1), "mot_kenh")
+    assert "chỉ có 1 kênh, cần ít nhất 3 kênh" in dlg.convert_color(one_band, cv2.COLOR_BGR2HSV, out)
+    uint16 = QgsRasterLayer(make_raster(tmp_path / "u16.tif", dtype="UInt16"), "u16")
+    assert "16-bit" in dlg.convert_color(uint16, cv2.COLOR_BGR2HSV, out)
 
     # raster 1 kênh -> thất bại
     from qgis.core import QgsProject

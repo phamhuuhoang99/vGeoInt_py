@@ -5,6 +5,7 @@ import os
 
 import cv2
 import numpy as np
+from osgeo import gdal
 from qgis.core import QgsRasterLayer
 from qgis.PyQt.QtCore import QCoreApplication, QFileInfo, pyqtSignal
 from qgis.PyQt.QtWidgets import QApplication, QDialog, QFileDialog
@@ -107,54 +108,65 @@ class ColorSpaceConvertionDialog(QDialog, Ui_ColorSpaceConvertionDialog):
         if store_dir and store_dir != directory:
             s.setValue("SaveImage/Dir", store_dir)
 
-    def convert_color(self, layer: QgsRasterLayer, code: int, output: str) -> bool:
+    def convert_color(self, layer: QgsRasterLayer, code: int, output: str) -> str | None:
+        """Convert the first 3 bands of `layer` into `output`. Return why it failed, None on success."""
         if layer is None or not layer.isValid():
-            log.critical("Raster is not valid")
-            return False
+            return "Ảnh đầu vào không hợp lệ"
         prov = layer.dataProvider()
         if prov.bandCount() < 3:
-            log.critical("BandCount < 3")
-            return False
-
-        self.progressBar.show()
-        self.progressBar.setValue(0)
-        self.progressBar.setValue(25)
-
+            return f"Ảnh {layer.name()} chỉ có {prov.bandCount()} kênh, cần ít nhất 3 kênh"
         # Một byte
         if prov.dataTypeSize(1) != 1:
-            log.critical("PixelType is unsupported")
+            return (
+                f"Ảnh {layer.name()} có kiểu điểm ảnh {prov.dataType(1).name} "
+                f"({prov.dataTypeSize(1) * 8}-bit), chỉ hỗ trợ ảnh 8-bit (Byte)"
+            )
+        folder = os.path.dirname(os.path.abspath(output))
+        if not os.path.isdir(folder):
+            return f"Thư mục lưu kết quả không tồn tại: {folder}"
+
+        self.progressBar.show()
+        self.progressBar.setValue(25)
+        try:
+            b1, b2, b3 = (read_band_u8(layer, b) for b in (1, 2, 3))
+            if any(b is None for b in (b1, b2, b3)):
+                return f"Không đọc được dữ liệu ảnh {layer.name()}"
+            self.progressBar.setValue(50)
+            # C++: merge(band3, band2, band1) -> cvtColor -> split ghi đè lại vào block3, block2, block1
+            dst = cv2.cvtColor(np.dstack((b3, b2, b1)), code)
+            bands = [dst[:, :, 2], dst[:, :, 1], dst[:, :, 0]]
+            self.progressBar.setValue(75)
+            gdal.ErrorReset()
+            if not write_geotiff_u8(output, bands, layer.extent(), layer.crs()) or not os.path.exists(output):
+                detail = gdal.GetLastErrorMsg()
+                return f"Không ghi được file {output}" + (f": {detail}" if detail else " (file đang mở hoặc không có quyền ghi?)")
+        except (cv2.error, MemoryError, OSError, RuntimeError) as e:
+            log.exception("Color space conversion failed")
+            return f"Lỗi khi xử lý ảnh: {e}"
+        finally:
+            self.progressBar.setValue(100)
             self.progressBar.hide()
-            return False
-
-        self.progressBar.setValue(50)
-        b1, b2, b3 = (read_band_u8(layer, b) for b in (1, 2, 3))
-        # C++: merge(band3, band2, band1) -> cvtColor -> split ghi đè lại vào block3, block2, block1
-        dst = cv2.cvtColor(np.dstack((b3, b2, b1)), code)
-        bands = [dst[:, :, 2], dst[:, :, 1], dst[:, :, 0]]
-        self.progressBar.setValue(75)
-
-        ok = write_geotiff_u8(output, bands, layer.extent(), layer.crs())
-        self.progressBar.setValue(100)
-        self.progressBar.hide()
-        return ok and os.path.exists(output)
+        return None
 
     def apply(self):
         from_text = self.fromColorCbx.currentText()
         to_text = self.toColorCbx.currentText()
-        output = self.outputLedr.text()
-        if not output.strip():
-            log.critical("Convert %s to %s failed", from_text, to_text)
-            self.noticeLbl.setText(_red("Chưa chọn thư mục lưu kết quả"))
-            return
-
+        output = self.outputLedr.text().strip()
         layer = self.rasterLayerCbx.currentData()
-        if layer is None or not layer.isValid():
-            log.critical("Raster is not valid")
-            return
-
         code = CONVERSIONS.get((from_text, to_text))
-        result = code is not None and self.convert_color(layer, code, output)
-        if result:
+
+        if not output:
+            reason = "Chưa chọn file lưu kết quả"
+        elif layer is None:
+            reason = "Chưa chọn ảnh đầu vào"
+        elif from_text == to_text:
+            reason = f"Không gian màu nguồn và đích giống nhau ({from_text})"
+        elif code is None:
+            reason = f"Không hỗ trợ chuyển {from_text} sang {to_text} (chỉ hỗ trợ RGB ↔ HSV, RGB ↔ HLS)"
+        else:
+            reason = self.convert_color(layer, code, output)
+
+        if reason is None:
             log.info("Convert %s to %s succeeded", from_text, to_text)
             self.noticeLbl.setText(_green("Chuyển đổi thành công"))
             notify_success(self.vn_name(), f"Chuyển {from_text} sang {to_text} thành công", output)
@@ -162,7 +174,7 @@ class ColorSpaceConvertionDialog(QDialog, Ui_ColorSpaceConvertionDialog):
             self._output_files = [output]
             self.complete.emit()
         else:
-            log.critical("Convert %s to %s failed", from_text, to_text)
-            self.noticeLbl.setText(_red("Chuyển đổi thất bại"))
-            notify_failure(self.vn_name(), "Chuyển đổi thất bại")
+            log.critical("Convert %s to %s failed: %s", from_text, to_text, reason)
+            self.noticeLbl.setText(_red(f"Chuyển đổi thất bại: {reason}"))
+            notify_failure(self.vn_name(), f"Chuyển đổi thất bại: {reason}")
         QApplication.beep()
