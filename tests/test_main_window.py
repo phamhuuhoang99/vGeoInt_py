@@ -1,5 +1,7 @@
 """Phase 1: the main window has the same menus, toolbars and docks as the C++ app."""
 
+from pathlib import Path
+
 import pytest
 from qgis.core import QgsVectorLayer
 from qgis.PyQt.QtWidgets import QToolBar
@@ -9,7 +11,7 @@ from tests.conftest import action_texts
 
 def test_menus(window):
     titles = [a.text() for a in window.mainMenuBar.actions()]
-    assert titles == ["File", "Xem", "Layer", "Vector", "Raster", "Công cụ", "Trợ giúp"]
+    assert titles == ["File", "Xem", "Layer", "Vector", "Raster", "Công cụ", "Tải ảnh vệ tinh", "Trợ giúp"]
 
 
 def test_file_menu(window):
@@ -406,3 +408,35 @@ def test_active_map_tool_button_is_checked(window):
 
 def test_selected_layer_is_highlighted(window):
     assert "item:selected" in window.layer_tree_view.styleSheet()
+
+
+def test_satellite_menu_opens_gee_dialog(window, monkeypatch):
+    from vgeoint.app.dialogs import google_earth_engine
+    from vgeoint.app.dialogs.google_earth_engine import GoogleEarthEngineDialog
+
+    mb = window.menu_bar_
+    assert [a.text() for a in mb.satellite_menu.actions()] == ["Tải ảnh từ Google Earth Engine..."]
+    assert mb.google_earth_engine_act not in mb.tool_menu.actions()
+    monkeypatch.setattr(google_earth_engine, "credentials_path", lambda: Path("missing"))
+    mb.google_earth_engine_act.trigger()
+    dialogs = window.findChildren(GoogleEarthEngineDialog)
+    assert dialogs and dialogs[-1].isVisible() and not dialogs[-1].isModal()
+    dialogs[-1].close()
+
+
+def test_tool_bars_on_one_row_without_gaps(window):
+    from vgeoint.common.utils import settings
+
+    # A saved state with a toolbar on a second row (as on the user's machine) is flattened again.
+    anno = window.findChild(QToolBar, "AnnotationBPluginToolBar")
+    window.insertToolBarBreak(anno)
+    settings().setValue("WindowState", window.saveState())
+    window.load_settings()
+    window.resize(1920, 900)
+    window.show()
+    bars = [t for t in window.findChildren(QToolBar) if t.parent() is window and t.isVisible()]
+    assert len({t.y() for t in bars}) == 1 and not any(window.toolBarBreak(t) for t in bars)
+    ordered = sorted(bars, key=lambda t: t.x())
+    assert all(b.x() - (a.x() + a.width()) <= 1 for a, b in zip(ordered, ordered[1:]))
+    assert window.findChild(QToolBar, "VectorBPluginToolBar").isHidden()  # no plugin actions
+    settings().remove("WindowState")

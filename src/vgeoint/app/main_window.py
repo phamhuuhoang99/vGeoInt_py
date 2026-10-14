@@ -96,7 +96,8 @@ MENU_BAR_STYLE = (
     "QMenuBar::item:pressed { background-color: #cce8ff; }"
 )
 TOOL_BUTTON_STYLE = (
-    "QToolBar QToolButton { border: 1px solid transparent; border-radius: 3px; padding: 2px; }"
+    "QToolBar { spacing: 0px; }"
+    "QToolBar QToolButton { border: 1px solid transparent; border-radius: 3px; padding: 1px; }"
     "QToolBar QToolButton:hover { background-color: #e5f3ff; border-color: #cce8ff; }"
     "QToolBar QToolButton:checked { background-color: #cce8ff; border-color: #3d8ee0; }"
     "QToolBar QToolButton:pressed { background-color: #99d1ff; }"
@@ -1284,6 +1285,19 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             value = s.value(key)
             if value is not None:
                 restore(value)
+        self.arrange_tool_bars()
+
+    def arrange_tool_bars(self):
+        """All toolbars on one row at the top, in creation order, without gaps; empty ones hidden.
+
+        A saved window state could leave toolbars on a second row or spread out with gaps; when the row is
+        too narrow, Qt shrinks the toolbars and moves the remaining icons into their » menu instead.
+        """
+        for tb in [t for t in self.findChildren(QToolBar) if t.parent() is self]:
+            self.removeToolBarBreak(tb)
+            self.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
+            if not any(not a.isSeparator() for a in tb.actions()):
+                tb.hide()
 
     def save_settings(self):
         s = settings()

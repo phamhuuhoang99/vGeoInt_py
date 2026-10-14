@@ -19,6 +19,7 @@ class MenuBar:
         self.create_vector_menu()
         self.create_raster_menu()
         self.create_tool_menu()
+        self.create_satellite_menu()
         self.create_help_menu()
 
     def add_view_action(self, act: QAction):
@@ -130,7 +131,6 @@ class MenuBar:
         self.image_blending_act = _action("ImageBlending.svg", "Trộn ảnh", m)
         self.view_metadata_act = _action("Metadata.svg", "Xem metadata", m)
         self.auto_classification_act = _action("Classification.svg", "Phân loại tự động", m)
-        self.google_earth_engine_act = _action("GoogleEarthEngine.svg", "Tải ảnh từ Google Earth Engine", m)
         # Not in the menu itself (same as C++), only connected.
         self.annotation_manager_act = _action("TextAnnotation/Manager.svg", "Quản lý ghi chú", m)
 
@@ -150,11 +150,19 @@ class MenuBar:
             self.image_blending_act,
             self.view_metadata_act,
             self.auto_classification_act,
-            self.google_earth_engine_act,
         ):
             m.addAction(act)
 
         self.menu_bar.addMenu(m)
+
+    def create_satellite_menu(self):
+        """Own menu for downloading imagery (the C++ app had it at the end of "Công cụ")."""
+        self.satellite_menu = QMenu("Tải ảnh vệ tinh", self.menu_bar)
+        self.google_earth_engine_act = _action(
+            "GoogleEarthEngine.svg", "Tải ảnh từ Google Earth Engine...", self.satellite_menu
+        )
+        self.satellite_menu.addAction(self.google_earth_engine_act)
+        self.menu_bar.addMenu(self.satellite_menu)
 
     def create_help_menu(self):
         self.help_menu = QMenu("Trợ giúp", self.menu_bar)
