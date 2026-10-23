@@ -210,7 +210,7 @@ class MainController:
         self._std_dialog("auto_classification", "AutoClassificationDialog")
 
     def google_earth_engine(self):
-        self._imagery_dialog("google_earth_engine", "GoogleEarthEngineDialog")
+        self._modeless_dialog("google_earth_engine", "GoogleEarthEngineDialog")
 
     def add_basemap(self, key: str):
         """Online basemap at the bottom of the layers; on an empty map, zoom to Viet Nam."""
@@ -237,10 +237,13 @@ class MainController:
         )
 
     def free_imagery(self):
-        self._imagery_dialog("free_imagery", "FreeImageryDialog")
+        self._modeless_dialog("free_imagery", "FreeImageryDialog")
 
-    def _imagery_dialog(self, module: str, class_name: str):
-        # Not modal: the map stays usable to pan/zoom and to draw the region of interest.
+    def uav_trajectory(self):
+        self._modeless_dialog("uav_trajectory", "UavTrajectoryDialog")
+
+    def _modeless_dialog(self, module: str, class_name: str):
+        # Not modal: the map stays usable (pan/zoom, draw the region of interest, look at results).
         mw = self.main_window
         dialog = self._exec_dialog(
             module, class_name, mw, mw.map_canvas, mw.layer_tree_view, modal_exec=False, modal=False

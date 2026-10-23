@@ -20,6 +20,7 @@ class MenuBar:
         self.create_vector_menu()
         self.create_raster_menu()
         self.create_tool_menu()
+        self.create_trajectory_menu()
         self.create_satellite_menu()
         self.create_help_menu()
 
@@ -155,6 +156,13 @@ class MenuBar:
             m.addAction(act)
 
         self.menu_bar.addMenu(m)
+
+    def create_trajectory_menu(self):
+        """Not in the C++ app: trajectories of moving objects (the Detect & Draw tool, ported)."""
+        self.trajectory_menu = QMenu("Phát hiện quỹ đạo", self.menu_bar)
+        self.uav_trajectory_act = _action("tracking.svg", "Phát hiện quỹ đạo trên ảnh UAV...", self.trajectory_menu)
+        self.trajectory_menu.addAction(self.uav_trajectory_act)
+        self.menu_bar.addMenu(self.trajectory_menu)
 
     def create_satellite_menu(self):
         """Own menu for downloading imagery (the C++ app had it at the end of "Công cụ")."""
