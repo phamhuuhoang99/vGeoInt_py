@@ -37,6 +37,13 @@ except ImportError:
     def result(**data):
         pass
 
+try:
+    from vgeoint.ai.scripts._device import resolve_device
+except ImportError:  # stand-alone run outside the app: no GPU check
+    def resolve_device(requested="auto", log=print):
+        import torch
+        return "cuda:0" if requested != "cpu" and torch.cuda.is_available() else "cpu"
+
 
 def log_progress(message, flush=True):
     """Print progress message with safe encoding handling"""
@@ -441,14 +448,8 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Chọn thiết bị tính toán
-    if args.device == "auto":
-        import torch
-
-        device_str = "cuda:0" if torch.cuda.is_available() else "cpu"
-    else:
-        device_str = args.device
-    log_progress(f"[OK] Compute device: {device_str}")
+    # Chọn thiết bị tính toán (GPU chỉ khi chạy được thật với bản PyTorch này)
+    device_str = resolve_device(args.device, log_progress)
 
     # 1. Quét file và sắp xếp theo mốc thời gian
     items = scan_input_directory(args.input_dir, args.output_dir)

@@ -44,6 +44,13 @@ except ImportError:
     def result(**kwargs):
         pass
 
+try:
+    from vgeoint.ai.scripts._device import resolve_device
+except ImportError:  # stand-alone run outside the app: no GPU check
+    def resolve_device(requested="auto", log=print):
+        import torch
+        return "cuda:0" if requested != "cpu" and torch.cuda.is_available() else "cpu"
+
 # Filled during processing, reported in the final result event.
 _STATS = {"seconds": None}
 
@@ -88,26 +95,14 @@ def load_model(model_path, device="cpu"):
 
         log_progress(f"Model file size: {file_size / (1024*1024):.2f} MB")
 
-        # Set device
-        if device == "auto":
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-
         log_progress(f"Using device: {device}")
 
         # Load the model with enhanced error handling
         try:
             log_progress("Attempting to load model...")
 
-            # Check if CUDA is available when using GPU
-            if device == "cuda" and not torch.cuda.is_available():
-                log_progress("CUDA not available, falling back to CPU")
-                device = "cpu"
-
-            # Load model with appropriate map_location
-            if device == "cuda":
-                model = torch.load(model_path, map_location='cuda:0', weights_only=False)
-            else:
-                model = torch.load(model_path, map_location='cpu', weights_only=False)
+            # Load model with appropriate map_location (device is resolved by main: "cuda:N" or "cpu")
+            model = torch.load(model_path, map_location=device, weights_only=False)
 
             log_progress("Model loaded from file successfully")
 
@@ -310,7 +305,7 @@ def main():
     parser.add_argument('--output', required=True, help='Output file path (will be saved as TIFF)')
     parser.add_argument('--confidence', type=float, default=0.5, help='Confidence threshold (0.1-1.0)')
     parser.add_argument('--size', type=int, default=512, help='Input size for model (default: 512)')
-    parser.add_argument('--device', type=str, default='cpu', choices=['cpu', 'cuda', 'auto'], help='Device to use')
+    parser.add_argument('--device', type=str, default='auto', help='Device to use: auto, cpu, cuda or cuda:N')
     parser.add_argument('--no-visualize', action='store_true', help='Skip overlay visualization')
 
     args = parser.parse_args()
@@ -324,12 +319,8 @@ def main():
     log_progress(f"Model input size: {args.size}")
     log_progress(f"Device: {args.device}")
 
-    # Determine actual device
-    device = args.device
-    if device == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    log_progress(f"Using device: {device}")
+    # Determine actual device (GPU only when it really runs with this PyTorch)
+    device = resolve_device(args.device, log_progress)
 
     # Load the model
     log_progress("Loading model...")

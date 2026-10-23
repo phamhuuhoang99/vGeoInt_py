@@ -24,6 +24,13 @@ except ImportError:
     def result(**kwargs):
         pass
 
+try:
+    from vgeoint.ai.scripts._device import resolve_device
+except ImportError:  # stand-alone run outside the app: no GPU check
+    def resolve_device(requested="auto", log=print):
+        import torch
+        return "cuda:0" if requested != "cpu" and torch.cuda.is_available() else "cpu"
+
 # Filled during processing, reported in the final result event.
 _STATS = {"seconds": None}
 
@@ -138,9 +145,8 @@ def load_model(model_path):
         # Use ultralytics YOLO with CPU optimization
         log_progress("Initializing YOLO model with ultralytics...")
 
-        # Force CPU usage for consistent behavior
-        device = 'cpu'
-        log_progress(f"Using device: {device}")
+        # The C++ app forced the CPU; the GPU is used when it really works (else CPU, logged).
+        device = resolve_device("auto", log_progress)
 
         model = YOLO(model_path)
 

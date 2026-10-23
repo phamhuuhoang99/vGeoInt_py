@@ -73,6 +73,13 @@ except ImportError:  # stand-alone run outside the app
     def result(**data):
         pass
 
+try:
+    from vgeoint.ai.scripts._device import resolve_device
+except ImportError:  # stand-alone run outside the app: no GPU check
+    def resolve_device(requested="auto", log=print):
+        import torch
+        return "cuda:0" if requested != "cpu" and torch.cuda.is_available() else "cpu"
+
 DEFAULT_MODEL = os.path.join(os.environ.get("VGEOINT_MODELS_DIR", os.path.dirname(os.path.abspath(__file__))),
                              "yolo26x.pt")
 VEHICLE_CLASSES = ["car", "truck", "bus", "motorcycle", "bicycle"]
@@ -1332,11 +1339,7 @@ def main():
     ann_dir = os.path.join(args.output_dir, "annotated")
     os.makedirs(ann_dir, exist_ok=True)
 
-    if args.device == "auto":
-        import torch
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    else:
-        device = args.device
+    device = resolve_device(args.device, log)
 
     global TARGET_CLASSES
     selected = {c.strip().lower() for c in args.classes.split(",") if c.strip()}

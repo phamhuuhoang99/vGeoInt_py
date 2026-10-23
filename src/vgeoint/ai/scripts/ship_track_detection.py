@@ -37,6 +37,13 @@ except ImportError:
     def result(**data):
         pass
 
+try:
+    from vgeoint.ai.scripts._device import resolve_device
+except ImportError:  # stand-alone run outside the app: no GPU check
+    def resolve_device(requested="auto", log=print):
+        import torch
+        return "cuda:0" if requested != "cpu" and torch.cuda.is_available() else "cpu"
+
 
 def log_progress(message, flush=True):
     """Print progress message with safe encoding handling"""
@@ -736,11 +743,7 @@ def main():
         sys.exit(1)
 
     # Device selection
-    if args.device == "auto":
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    else:
-        device = torch.device(args.device)
-    log_progress(f"[OK] Using compute device: {device}")
+    device = torch.device(resolve_device(args.device, log_progress))
 
     # 1. Scan files
     files_list = scan_input_directory(args.input_dir)

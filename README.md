@@ -167,6 +167,19 @@ Docker Desktop thì các test đó bị bỏ qua.
 Các dialog AI chạy script trong `src/vgeoint/ai/scripts` bằng python của môi trường `ai`
 (`vgeoint.ai.runner.ScriptRunner`), model lấy từ `models/` (xem bước 4 ở trên).
 
+**GPU:** môi trường `ai` dùng PyTorch bản CUDA 12.8 (thư viện CUDA đi kèm, không cần cài CUDA Toolkit).
+Mỗi lần chạy, script thử một phép tính nhỏ trên GPU (`vgeoint/ai/scripts/_device.py`):
+
+| Máy | Kết quả |
+|---|---|
+| Card NVIDIA từ GTX 900 tới RTX 50, driver ≥ 528 | Chạy bằng GPU, log: `[OK] Dùng GPU: ...` |
+| Không có card NVIDIA, card AMD/Intel | Chạy bằng CPU, log: `Không có GPU NVIDIA dùng được` |
+| Driver NVIDIA quá cũ | Chạy bằng CPU, log ghi lý do; cập nhật driver để dùng GPU |
+| Card quá cũ/quá mới so với bản PyTorch | Chạy bằng CPU, log: `GPU không chạy được với bản PyTorch này` |
+
+Máy không có GPU NVIDIA mà cần `pixi install -e ai`: đặt `CONDA_OVERRIDE_CUDA=12.8` trước khi cài
+(bộ cài `vGeoInt-AI-Setup` không cần).
+
 Test chạy model thật: `pixi run pytest -m slow`.
 
 ## Đóng gói bộ cài (Windows)
@@ -175,7 +188,7 @@ Cần Inno Setup 6 (`C:\Program Files (x86)\Inno Setup 6\ISCC.exe`).
 
 ```bash
 pixi run -e package package          # dist/vGeoInt-Setup-<version>.exe   (~0,9 GB)
-pixi run -e package package --ai     # dist/vGeoInt-AI-Setup-<version>.exe (~1,4 GB)
+pixi run -e package package --ai     # dist/vGeoInt-AI-Setup-<version>.exe (PyTorch GPU: môi trường ~8,5 GB khi cài)
 pixi run -e package package --all    # cả hai
 ```
 

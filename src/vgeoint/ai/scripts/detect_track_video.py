@@ -13,6 +13,13 @@ try:
 except Exception:  # pragma: no cover
     torch = None
 
+try:
+    from vgeoint.ai.scripts._device import resolve_device
+except ImportError:  # stand-alone run outside the app: no GPU check
+    def resolve_device(requested="auto", log=print):
+        import torch
+        return "cuda:0" if requested != "cpu" and torch.cuda.is_available() else "cpu"
+
 # Reduce chance of OpenMP duplicate runtime crashes on Windows.
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
@@ -133,12 +140,10 @@ def main() -> int:
     requested_device = args.device
     resolved_device = requested_device
 
-    # If CUDA is requested but unavailable, transparently fall back to CPU.
+    # If CUDA is requested but unusable (no GPU, old driver, GPU not supported by this PyTorch build),
+    # transparently fall back to CPU.
     if requested_device.lower().startswith("cuda"):
-        cuda_available = bool(torch is not None and torch.cuda.is_available())
-        if not cuda_available:
-            print("[WARN] CUDA device requested but no NVIDIA GPU/driver found. Falling back to CPU.")
-            resolved_device = "cpu"
+        resolved_device = resolve_device(requested_device) if torch is not None else "cpu"
 
     print(f"Loading detector on device: {resolved_device}")
     try:
