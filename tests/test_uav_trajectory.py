@@ -164,6 +164,27 @@ def test_run_shows_results_and_adds_tracks_to_map(uav, qtbot):
     assert points.labelsEnabled()
     # Shapefile fields of the fake run keep the GeoJSON names ("time", "avg_spd_k")
     assert points.labeling().settings().fieldName == "'#' || \"track_id\" || ' ' || left(\"time\", 12)"
+    # One colour per vehicle, the colours of detect_and_draw.py's images (BGR there)
+    import ast
+    import colorsys
+
+    from vgeoint.app.dialogs.uav_trajectory import track_color
+
+    # detect_and_draw.py needs the ai packages: take only its track_color() function (the real script; the
+    # fixture points the runner at the fake one)
+    tree = ast.parse((ROOT / "src/vgeoint/ai/scripts/detect_and_draw.py").read_text(encoding="utf-8"))
+    namespace = {"colorsys": colorsys}
+    exec(compile(ast.Module([n for n in tree.body if getattr(n, "name", "") == "track_color"], []), "x", "exec"),
+         namespace)
+    image_color = namespace["track_color"]
+
+    categories = tracks.renderer().categories()
+    assert [c.label() for c in categories] == ["#1", "#2"]
+    assert [c.symbol().color().name() for c in categories] == [track_color(1).name(), track_color(2).name()]
+    assert track_color(1).name() != track_color(2).name()
+    b, g, r = image_color(1)
+    assert track_color(1).getRgb()[:3] == (r, g, b)
+    assert [c.symbol().color().name() for c in points.renderer().categories()] == [track_color(1).name()]
     assert tracks.labelsEnabled()
     assert tracks.labeling().settings().fieldName == (
         "'#' || \"track_id\" || ' · ' || 'TB ' || format_number(\"avg_spd_k\", 1) || ' km/h'")

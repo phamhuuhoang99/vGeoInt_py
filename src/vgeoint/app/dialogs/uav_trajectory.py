@@ -5,12 +5,14 @@ Tkinter GUI; the detection itself is the original detect_and_draw.py, run in the
 tracks / points can be added to the map (GeoJSON in the CRS of the images) when the run finishes.
 """
 
+import colorsys
 import json
 import os
 import re
 
 from qgis.core import (
     Qgis,
+    QgsCategorizedSymbolRenderer,
     QgsCoordinateTransform,
     QgsLineSymbol,
     QgsMarkerLineSymbolLayer,
@@ -18,6 +20,7 @@ from qgis.core import (
     QgsPalLayerSettings,
     QgsProject,
     QgsRasterLayer,
+    QgsRendererCategory,
     QgsSingleSymbolRenderer,
     QgsTextBufferSettings,
     QgsTextFormat,
@@ -147,22 +150,46 @@ TRACK_COLUMNS = [
 ]
 
 
-def style_result_layer(layer: QgsVectorLayer):
-    """Visible over the UAV image: thick red tracks with an arrow at the end (direction), yellow points."""
-    if layer.geometryType() == Qgis.GeometryType.Line:
-        symbol = QgsLineSymbol.createSimple({"color": "#e31a1c", "width": "0.9", "capstyle": "round"})
-        arrow = QgsMarkerLineSymbolLayer()
+def track_color(track_id: int) -> QColor:
+    """Colour of a track, as detect_and_draw.track_color() draws it on the result images (golden-ratio hues)."""
+    r, g, b = colorsys.hsv_to_rgb((track_id * 0.61803398875) % 1.0, 0.85, 1.0)
+    return QColor(int(r * 255), int(g * 255), int(b * 255))
+
+
+def _track_symbol(geometry_type, color: QColor):
+    name = color.name()
+    if geometry_type == Qgis.GeometryType.Line:
+        symbol = QgsLineSymbol.createSimple({"color": name, "width": "0.9", "capstyle": "round"})
+        arrow = QgsMarkerLineSymbolLayer()  # arrow head at the last point: direction of travel
         arrow.setPlacements(Qgis.MarkerLinePlacement.LastVertex)
-        head = QgsMarkerSymbol.createSimple({"name": "arrowhead", "color": "#e31a1c", "outline_color": "#e31a1c",
-                                             "size": "3.5", "outline_width": "0.6"})
-        arrow.setSubSymbol(head)
+        arrow.setSubSymbol(QgsMarkerSymbol.createSimple(
+            {"name": "arrowhead", "color": name, "outline_color": name, "size": "3.5", "outline_width": "0.6"}))
         symbol.appendSymbolLayer(arrow)
+        return symbol
+    return QgsMarkerSymbol.createSimple(
+        {"name": "circle", "color": name, "outline_color": "#000000", "size": "2.6", "outline_width": "0.3"})
+
+
+def style_result_layer(layer: QgsVectorLayer):
+    """One colour per vehicle (same as on the result images): tracks with an arrow at the end, points."""
+    line = layer.geometryType() == Qgis.GeometryType.Line
+    if "track_id" in layer.fields().names():
+        index = layer.fields().indexOf("track_id")
+        categories = []
+        for value in sorted(v for v in layer.uniqueValues(index) if v is not None):
+            try:
+                color = track_color(int(value))
+            except (TypeError, ValueError):
+                color = QColor("#e31a1c")
+            categories.append(QgsRendererCategory(value, _track_symbol(layer.geometryType(), color), f"#{value}"))
+        renderer = QgsCategorizedSymbolRenderer("track_id", categories)
+    else:
+        renderer = QgsSingleSymbolRenderer(_track_symbol(layer.geometryType(), QColor("#e31a1c")))
+    layer.setRenderer(renderer)
+    if line:
         label_speed(layer)
     else:
-        symbol = QgsMarkerSymbol.createSimple({"name": "circle", "color": "#ffd92f", "outline_color": "#000000",
-                                               "size": "2.4", "outline_width": "0.3"})
         label_time(layer)
-    layer.setRenderer(QgsSingleSymbolRenderer(symbol))
 
 
 def _first_field(layer: QgsVectorLayer, *names: str) -> str | None:
