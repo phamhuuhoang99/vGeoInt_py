@@ -49,7 +49,7 @@ FAKE_DETECT_AND_DRAW = textwrap.dedent('''
     json.dump(tracks, open(os.path.join(out, "tracks.geojson"), "w", encoding="utf-8"), ensure_ascii=False)
     points = {"type": "FeatureCollection", "crs": crs, "features": [
         {"type": "Feature", "geometry": {"type": "Point", "coordinates": [585000, 2325000]},
-         "properties": {"track_id": 1}}]}
+         "properties": {"track_id": 1, "time": "16:29:27.000 28/03/2026"}}]}
     json.dump(points, open(os.path.join(out, "points.geojson"), "w", encoding="utf-8"))
     if os.environ.get("UAV_MODE") != "geojson-only":
         from osgeo import ogr
@@ -160,6 +160,13 @@ def test_run_shows_results_and_adds_tracks_to_map(uav, qtbot):
     images = group.findGroup("Ảnh UAV").children()
     assert [n.name() for n in images] == ["DJI_20260328162929_0524_V", "DJI_20260328162927_0523_V"]
     assert [n.itemVisibilityChecked() for n in images] == [True, False]  # only the latest shown
+    points = QgsProject.instance().mapLayersByName("Điểm phương tiện")[0]
+    assert points.labelsEnabled()
+    # Shapefile fields of the fake run keep the GeoJSON names ("time", "avg_spd_k")
+    assert points.labeling().settings().fieldName == "'#' || \"track_id\" || ' ' || left(\"time\", 12)"
+    assert tracks.labelsEnabled()
+    assert tracks.labeling().settings().fieldName == (
+        "'#' || \"track_id\" || ' · ' || 'TB ' || format_number(\"avg_spd_k\", 1) || ' km/h'")
 
     # Settings are remembered for the next time
     from vgeoint.app.dialogs.uav_trajectory import load_settings

@@ -15,10 +15,14 @@ from qgis.core import (
     QgsLineSymbol,
     QgsMarkerLineSymbolLayer,
     QgsMarkerSymbol,
+    QgsPalLayerSettings,
     QgsProject,
     QgsRasterLayer,
     QgsSingleSymbolRenderer,
+    QgsTextBufferSettings,
+    QgsTextFormat,
     QgsVectorLayer,
+    QgsVectorLayerSimpleLabeling,
 )
 from qgis.PyQt.QtCore import QRectF, Qt, QUrl
 from qgis.PyQt.QtGui import QAction, QColor, QDesktopServices, QImageReader, QPainter, QPixmap, QTextCursor
@@ -153,10 +157,60 @@ def style_result_layer(layer: QgsVectorLayer):
                                              "size": "3.5", "outline_width": "0.6"})
         arrow.setSubSymbol(head)
         symbol.appendSymbolLayer(arrow)
+        label_speed(layer)
     else:
         symbol = QgsMarkerSymbol.createSimple({"name": "circle", "color": "#ffd92f", "outline_color": "#000000",
                                                "size": "2.4", "outline_width": "0.3"})
+        label_time(layer)
     layer.setRenderer(QgsSingleSymbolRenderer(symbol))
+
+
+def _first_field(layer: QgsVectorLayer, *names: str) -> str | None:
+    """The first of `names` the layer has (shapefile field names differ from the GeoJSON ones)."""
+    fields = layer.fields().names()
+    return next((name for name in names if name in fields), None)
+
+
+def _set_label(layer: QgsVectorLayer, expression: str, placement):
+    settings = QgsPalLayerSettings()
+    settings.fieldName = expression
+    settings.isExpression = True
+    settings.placement = placement
+    settings.dist = 1.5
+    text = QgsTextFormat()
+    text.setSize(9)
+    text.setColor(QColor("#000000"))
+    font = text.font()
+    font.setBold(True)
+    text.setFont(font)
+    buffer = QgsTextBufferSettings()
+    buffer.setEnabled(True)
+    buffer.setSize(1.0)
+    buffer.setColor(QColor("#ffffff"))
+    text.setBuffer(buffer)
+    settings.setFormat(text)
+    layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
+    layer.setLabelsEnabled(True)
+
+
+def _track_prefix(layer: QgsVectorLayer) -> str:
+    return "'#' || \"track_id\" || ' ' || " if _first_field(layer, "track_id") else ""
+
+
+def label_time(layer: QgsVectorLayer):
+    """Label each vehicle point "#<track> <capture time>" ("#1 16:29:47.528"; the date is left out)."""
+    time_field = _first_field(layer, "thoi_gian", "time")
+    if time_field:
+        _set_label(layer, f"{_track_prefix(layer)}left(\"{time_field}\", 12)", Qgis.LabelPlacement.AroundPoint)
+
+
+def label_speed(layer: QgsVectorLayer):
+    """Label each track along its line with its average speed: "#1 · TB 53.1 km/h"."""
+    speed_field = _first_field(layer, "v_tb_kmh", "avg_spd_k")
+    if speed_field:
+        prefix = "'#' || \"track_id\" || ' · ' || " if _first_field(layer, "track_id") else ""
+        _set_label(layer, f"{prefix}'TB ' || format_number(\"{speed_field}\", 1) || ' km/h'",
+                   Qgis.LabelPlacement.Line)
 
 
 def load_settings() -> dict:
