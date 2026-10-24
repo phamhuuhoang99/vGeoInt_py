@@ -6,6 +6,8 @@ import textwrap
 
 import pytest
 
+from qgis.PyQt.QtCore import Qt
+
 from vgeoint.common.paths import ROOT
 
 AI_PYTHON = ROOT / ".pixi" / "envs" / "ai" / "python.exe"
@@ -117,6 +119,30 @@ def test_defaults_and_input_folder(uav):
     uav.edits["output_dir"].setText(str(uav.images) + "_ketqua")
     uav.run_btn.click()
     assert uav.errors[-1] == "Hãy chọn ít nhất một loại đối tượng cần theo dõi."
+
+
+def test_wheel_scrolls_the_panel_without_changing_parameters(uav, qtbot):
+    from qgis.PyQt.QtCore import QPoint, QPointF
+    from qgis.PyQt.QtGui import QWheelEvent
+    from qgis.PyQt.QtWidgets import QApplication
+
+    uav.resize(900, 400)  # the parameter panel needs a scroll bar
+    uav.show()
+    qtbot.waitExposed(uav)
+    bar = uav.param_scroll.verticalScrollBar()
+    assert bar.maximum() > 0
+    bar.setValue(bar.maximum() // 2)
+    start = bar.value()
+
+    spin = uav.spins["conf"]
+    for widget, value in ((spin, spin.value()), (uav.device_combo, uav.device_combo.currentText())):
+        centre = QPointF(widget.rect().center())
+        event = QWheelEvent(centre, QPointF(widget.mapToGlobal(QPoint(5, 5))), QPoint(0, 0), QPoint(0, -120),
+                            Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase,
+                            False)
+        QApplication.sendEvent(widget, event)
+        assert (widget.value() if widget is spin else widget.currentText()) == value
+    assert bar.value() > start  # scrolled down instead
 
 
 def test_run_shows_results_and_adds_tracks_to_map(uav, qtbot):

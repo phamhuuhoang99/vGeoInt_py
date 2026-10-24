@@ -27,10 +27,11 @@ from qgis.core import (
     QgsVectorLayer,
     QgsVectorLayerSimpleLabeling,
 )
-from qgis.PyQt.QtCore import QRectF, Qt, QUrl
+from qgis.PyQt.QtCore import QEvent, QObject, QRectF, Qt, QUrl
 from qgis.PyQt.QtGui import QAction, QColor, QDesktopServices, QImageReader, QPainter, QPixmap, QTextCursor
 from qgis.PyQt.QtWidgets import (
     QAbstractItemView,
+    QAbstractSpinBox,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -307,6 +308,22 @@ class ImageView(QGraphicsView):
             self.fit()
 
 
+class ScrollInsteadOfWheel(QObject):
+    """Event filter: a wheel turn over a spin box / combo box scrolls `scroll_area` instead of changing it."""
+
+    def __init__(self, scroll_area: QScrollArea, parent=None):
+        super().__init__(parent)
+        self.scroll_area = scroll_area
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Wheel:
+            bar = self.scroll_area.verticalScrollBar()
+            steps = event.angleDelta().y() / 120
+            bar.setValue(bar.value() - int(steps * bar.singleStep() * 3))
+            return True
+        return False
+
+
 class UavTrajectoryDialog(QDialog):
     def __init__(self, parent=None, map_canvas=None, layer_tree_view=None):
         super().__init__(parent)
@@ -356,6 +373,12 @@ class UavTrajectoryDialog(QDialog):
         left_layout.addStretch()
         scroll.setWidget(left)
         splitter.addWidget(scroll)
+        self.param_scroll = scroll
+        # The wheel scrolls the panel; it no longer changes the number / choice under the mouse.
+        self._wheel_guard = ScrollInsteadOfWheel(scroll, self)
+        for box in left.findChildren(QAbstractSpinBox) + left.findChildren(QComboBox):
+            box.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            box.installEventFilter(self._wheel_guard)
 
         self.tabs = QTabWidget(self)
         self.tabs.addTab(self._images_tab(), "Ảnh kết quả")
