@@ -3,7 +3,10 @@ name = "vgeoint"
 version = "0.1.0"
 description = "vGeoInt — GIS desktop suite (PyQGIS rewrite)"
 channels = ["conda-forge"]
-platforms = ["win-64"]
+# Two platforms: "win-64" for the GUI environments, "win-64-cuda" (the CUDA 12 virtual package) so that the
+# solver takes the CUDA build of PyTorch for the ai environment on any machine; it still runs on CPU-only
+# machines (vgeoint.ai.scripts._device).
+platforms = ["win-64", { name = "win-64-cuda", platform = "win-64", cuda = "12" }]
 
 # ---------------------------------------------------------------- GUI (default)
 [dependencies]
@@ -26,6 +29,9 @@ db-up = "python tools/db_docker.py up"
 db-down = "python tools/db_docker.py down"
 
 # ---------------------------------------------------------------- tests
+[feature.gui]
+platforms = ["win-64"]
+
 [feature.test.dependencies]
 pytest = "*"
 pytest-qt = "*"
@@ -43,17 +49,19 @@ test = "pytest -q"
 # and need driver >= 580.
 dependencies = { python = "3.12.*", pytorch = { version = "2.13.*", build = "cuda128*" }, torchvision = { version = "*", build = "cuda128*" }, cuda-version = "12.8.*", scikit-learn = "1.7.*", joblib = "*", rasterio = "*", geopandas = "*", shapely = "*", pyproj = "*", opencv = "*", scipy = "*", pandas = "*", matplotlib-base = "*", pillow = "*", requests = "*", onnxruntime = "*", earthengine-api = "*" }
 pypi-dependencies = { ultralytics = "*", sahi = "*", segmentation-models-pytorch = "*", motmetrics = "*" }
-# Lets the solver pick the CUDA builds on any machine (they still run on CPU-only machines).
-system-requirements = { cuda = "12" }
+platforms = ["win-64-cuda"]
 
 [environments]
-default = { features = ["test"], solve-group = "gui" }
+default = { features = ["gui", "test"], solve-group = "gui" }
 ai = { features = ["ai"], no-default-feature = true }
 # What the installer ships: the GUI env without test tools, same versions as `default`.
-runtime = { solve-group = "gui" }
+runtime = { features = ["gui"], solve-group = "gui" }
 package = { features = ["package"], no-default-feature = true }
 
 # ---------------------------------------------------------------- packaging
+[feature.package]
+platforms = ["win-64"]
+
 [feature.package.dependencies]
 python = "3.12.*"
 pixi-pack = "0.7.*"
