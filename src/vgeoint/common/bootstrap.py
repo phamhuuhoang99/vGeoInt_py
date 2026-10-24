@@ -59,6 +59,30 @@ def install_file_log(app_name: str):
     qInstallMessageHandler(lambda msg_type, _ctx, msg: qt_log.log(qt_levels.get(msg_type, logging.INFO), msg))
 
 
+def install_ctrl_c_handler():
+    """Ctrl+C in the console the app was started from closes the windows (with the usual "save?" questions).
+
+    Python's default handler raised KeyboardInterrupt in whatever Python code Qt happened to call next (an
+    event filter, a slot), which was logged as an error. Qt's event loop runs in C++: a timer lets the
+    interpreter run regularly so that the signal is seen.
+    """
+    import signal
+
+    from qgis.PyQt.QtCore import QTimer
+    from qgis.PyQt.QtWidgets import QApplication
+
+    app = QApplication.instance()
+
+    def close_windows(*_):
+        QTimer.singleShot(0, app.closeAllWindows)
+
+    signal.signal(signal.SIGINT, close_windows)
+    timer = QTimer(app)
+    timer.timeout.connect(lambda: None)
+    timer.start(300)
+    app._ctrl_c_timer = timer  # keep it alive
+
+
 def install_exception_hook(app_name: str):
     """Log uncaught Python exceptions and show them instead of letting PyQt6 abort the app.
 
@@ -81,6 +105,9 @@ def install_exception_hook(app_name: str):
     shown: set[tuple] = set()
 
     def hook(exc_type, exc, tb):
+        if issubclass(exc_type, KeyboardInterrupt) and QApplication.instance() is not None:
+            QApplication.instance().closeAllWindows()  # Ctrl+C in the console: not an error
+            return
         text = "".join(traceback.format_exception(exc_type, exc, tb))
         log.error(text)
         sys.__stderr__ and sys.__stderr__.write(text)

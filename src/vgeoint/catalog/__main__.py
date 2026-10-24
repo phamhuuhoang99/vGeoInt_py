@@ -4,7 +4,12 @@ import sys
 
 from qgis.core import QgsApplication
 
-from vgeoint.common.bootstrap import create_app, install_exception_hook, install_file_log
+from vgeoint.common.bootstrap import (
+    create_app,
+    install_ctrl_c_handler,
+    install_exception_hook,
+    install_file_log,
+)
 from vgeoint.common.defines import CATALOG_NAME
 
 
@@ -12,6 +17,7 @@ def main() -> int:
     app = create_app(CATALOG_NAME)
     install_file_log(CATALOG_NAME)
     install_exception_hook(CATALOG_NAME)
+    install_ctrl_c_handler()
 
     from vgeoint.catalog.main_window import MainWindow
 
