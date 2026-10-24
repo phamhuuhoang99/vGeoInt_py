@@ -9,7 +9,17 @@ import json
 import os
 import re
 
-from qgis.core import QgsCoordinateTransform, QgsProject, QgsVectorLayer
+from qgis.core import (
+    Qgis,
+    QgsCoordinateTransform,
+    QgsLineSymbol,
+    QgsMarkerLineSymbolLayer,
+    QgsMarkerSymbol,
+    QgsProject,
+    QgsRasterLayer,
+    QgsSingleSymbolRenderer,
+    QgsVectorLayer,
+)
 from qgis.PyQt.QtCore import QRectF, Qt, QUrl
 from qgis.PyQt.QtGui import QAction, QColor, QDesktopServices, QImageReader, QPainter, QPixmap, QTextCursor
 from qgis.PyQt.QtWidgets import (
@@ -52,6 +62,8 @@ from vgeoint.common.utils import get_icon, settings
 SCRIPT = "detect_and_draw.py"
 SETTINGS_KEY = "UavTrajectory/Settings"
 IMAGE_EXTS = (".tif", ".tiff", ".jpg", ".jpeg", ".png")
+# Results saved next to the images, skipped by detect_and_draw.py (scan_input_directory)
+DERIVED_MARKS = ("_det", "_mask", "_preview", "_output")
 
 
 def default_model() -> str:
@@ -129,6 +141,22 @@ TRACK_COLUMNS = [
     ("end_time", "Kết thúc"), ("tot_dist_m", "Quãng đường (m)"), ("avg_spd_k", "V TB (km/h)"),
     ("max_spd_k", "V max (km/h)"), ("heading", "Hướng"), ("status", "Trạng thái"), ("check", "Kiểm tra"),
 ]
+
+
+def style_result_layer(layer: QgsVectorLayer):
+    """Visible over the UAV image: thick red tracks with an arrow at the end (direction), yellow points."""
+    if layer.geometryType() == Qgis.GeometryType.Line:
+        symbol = QgsLineSymbol.createSimple({"color": "#e31a1c", "width": "0.9", "capstyle": "round"})
+        arrow = QgsMarkerLineSymbolLayer()
+        arrow.setPlacements(Qgis.MarkerLinePlacement.LastVertex)
+        head = QgsMarkerSymbol.createSimple({"name": "arrowhead", "color": "#e31a1c", "outline_color": "#e31a1c",
+                                             "size": "3.5", "outline_width": "0.6"})
+        arrow.setSubSymbol(head)
+        symbol.appendSymbolLayer(arrow)
+    else:
+        symbol = QgsMarkerSymbol.createSimple({"name": "circle", "color": "#ffd92f", "outline_color": "#000000",
+                                               "size": "2.4", "outline_width": "0.3"})
+    layer.setRenderer(QgsSingleSymbolRenderer(symbol))
 
 
 def load_settings() -> dict:
@@ -653,34 +681,71 @@ class UavTrajectoryDialog(QDialog):
         else:
             QMessageBox.information(self, "Thông báo", f"Chưa có {name}. Hãy chạy trước.")
 
+    def frame_images(self) -> list[str]:
+        """The images detect_and_draw.py reads from the input folder (same filter), in name/time order."""
+        folder = self.edits["input_dir"].text().strip()
+        if not os.path.isdir(folder):
+            return []
+        return [
+            os.path.join(folder, f) for f in sorted(os.listdir(folder))
+            if os.path.splitext(f)[1].lower() in IMAGE_EXTS and not any(k in f.lower() for k in DERIVED_MARKS)
+        ]
+
     def add_results_to_map(self) -> int:
-        """Tracks (lines) and points of the last run as layers of a group named after the output folder."""
+        """Shapefiles (vehicle points, tracks) and the UAV images of the last run, in one layer group.
+
+        The images go into a sub-group under the vectors; only the last one is shown so that they do not
+        hide each other (tick another one to compare). Falls back to the GeoJSON files when there is no
+        shapefile (results of an older version).
+        """
         out = self.output_dir()
-        layers = []
-        for file_name, title in (("tracks.geojson", "Quỹ đạo"), ("points.geojson", "Điểm phương tiện")):
-            path = os.path.join(out, file_name)
-            if not os.path.isfile(path):
+        name = os.path.basename(out)
+        vectors = []
+        for shp, geojson, title in (
+            ("2_duong_di_phuong_tien.shp", "tracks.geojson", "Đường đi phương tiện"),
+            ("1_diem_phuong_tien.shp", "points.geojson", "Điểm phương tiện"),
+        ):
+            path = next((p for p in (os.path.join(out, "shapefile", shp), os.path.join(out, geojson))
+                         if os.path.isfile(p)), None)
+            if path is None:
                 continue
-            layer = QgsVectorLayer(path, f"{title} - {os.path.basename(out)}", "ogr")
+            layer = QgsVectorLayer(path, title, "ogr")
             if layer.isValid():
-                layers.append(layer)
-        if not layers:
-            QMessageBox.information(self, "Thông báo", "Chưa có kết quả (tracks.geojson / points.geojson).")
+                style_result_layer(layer)
+                vectors.append(layer)
+        if not vectors:
+            QMessageBox.information(self, "Thông báo", "Chưa có kết quả (shapefile / tracks.geojson).")
             return 0
+        images = [QgsRasterLayer(p, os.path.splitext(os.path.basename(p))[0], "gdal") for p in self.frame_images()]
+        images = [layer for layer in images if layer.isValid()]
+
         project = QgsProject.instance()
-        group = project.layerTreeRoot().insertGroup(0, f"Quỹ đạo UAV - {os.path.basename(out)}")
-        for layer in layers:
+        group = project.layerTreeRoot().insertGroup(0, f"Quỹ đạo UAV - {name}")
+        for layer in vectors:
             project.addMapLayer(layer, False)
             group.addLayer(layer)
-        self.output_files = [layer.source() for layer in layers]
+        if images:
+            image_group = group.addGroup("Ảnh UAV")
+            for i, layer in enumerate(reversed(images)):  # latest on top
+                project.addMapLayer(layer, False)
+                node = image_group.addLayer(layer)
+                node.setItemVisibilityChecked(i == 0)
+                node.setExpanded(False)  # no Band 1/2/3 legend rows
+        self.output_files = [layer.source() for layer in vectors + images]
+
         if self.map_canvas is not None:
-            extent = layers[0].extent()
-            if not extent.isEmpty():
-                transform = QgsCoordinateTransform(layers[0].crs(), self.map_canvas.mapSettings().destinationCrs(),
-                                                   project)
-                self.map_canvas.setExtent(transform.transformBoundingBox(extent).scaled(1.3))
+            dest = self.map_canvas.mapSettings().destinationCrs()
+            extent = None
+            for layer in images or vectors:
+                box = QgsCoordinateTransform(layer.crs(), dest, project).transformBoundingBox(layer.extent())
+                if extent is None:
+                    extent = box
+                else:
+                    extent.combineExtentWith(box)
+            if extent is not None and not extent.isEmpty():
+                self.map_canvas.setExtent(extent.scaled(1.1))
             self.map_canvas.refresh()
-        return len(layers)
+        return len(vectors) + len(images)
 
     def done(self, result: int):
         if self.process is not None and self.process.is_running():

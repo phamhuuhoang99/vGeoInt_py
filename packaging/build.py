@@ -60,8 +60,10 @@ def iss_with_bom(name: str) -> Path:
 def pixi_pack(env: str, out: Path):
     if out.exists():
         shutil.rmtree(out)
+    # Downloaded packages are kept in build/pack-cache: a failed download (a few GB for the ai env) can be
+    # retried without starting over, and later builds only fetch what changed.
     run([tool("pixi-pack"), "--environment", env, "--directory-only", "--ignore-pypi-non-wheel",
-         "--output-file", out, ROOT / "pixi.toml"])
+         "--use-cache", ROOT / "build" / "pack-cache", "--output-file", out, ROOT / "pixi.toml"])
 
 
 def stage_app() -> Path:

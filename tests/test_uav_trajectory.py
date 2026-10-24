@@ -51,6 +51,11 @@ FAKE_DETECT_AND_DRAW = textwrap.dedent('''
         {"type": "Feature", "geometry": {"type": "Point", "coordinates": [585000, 2325000]},
          "properties": {"track_id": 1}}]}
     json.dump(points, open(os.path.join(out, "points.geojson"), "w", encoding="utf-8"))
+    if os.environ.get("UAV_MODE") != "geojson-only":
+        from osgeo import ogr
+        os.makedirs(os.path.join(out, "shapefile"), exist_ok=True)
+        for src, shp in (("tracks.geojson", "2_duong_di_phuong_tien.shp"), ("points.geojson", "1_diem_phuong_tien.shp")):
+            gdal.VectorTranslate(os.path.join(out, "shapefile", shp), os.path.join(out, src), format="ESRI Shapefile")
     print("Xong trong 1.0 s", flush=True)
     result(output_dir=out, tracks=2, points=1)
 ''')
@@ -71,10 +76,13 @@ def uav(window, tmp_path, monkeypatch):
     args_file = tmp_path / "uav_args.json"
     monkeypatch.setenv("UAV_ARGS_FILE", str(args_file))
 
+    from tests.conftest import make_raster
+
     images = tmp_path / "oto3"
     images.mkdir()
-    for name in ("DJI_20260328162927_0523_V.tif", "DJI_20260328162929_0524_V.tif"):
-        (images / name).write_bytes(b"")
+    for i, name in enumerate(("DJI_20260328162927_0523_V.tif", "DJI_20260328162929_0524_V.tif",
+                              "DJI_20260328162927_0523_V_buildings_mask.tif")):
+        make_raster(images / name, seed=i)
     model = tmp_path / "yolo26x.pt"
     model.write_bytes(b"")
     dlg = UavTrajectoryDialog(window, window.map_canvas, window.layer_tree_view)
@@ -102,7 +110,7 @@ def test_defaults_and_input_folder(uav):
     assert [k for k, c in uav.class_checks.items() if c.isChecked()] == ["car", "truck", "bus", "motorcycle", "bicycle"]
     assert uav.spins["conf"].value() == 0.25 and uav.spins["tile_size"].value() == 640
     uav.edits["input_dir"].setText(str(uav.images))
-    assert "2 ảnh" in uav.count_label.text() and "tên file" in uav.count_label.text()
+    assert "3 ảnh" in uav.count_label.text() and "tên file" in uav.count_label.text()
     uav.set_classes([])
     uav.run_btn.click()
     assert uav.errors[-1] == "Chưa chọn thư mục kết quả."
@@ -142,16 +150,33 @@ def test_run_shows_results_and_adds_tracks_to_map(uav, qtbot):
     assert row["ID"] == "1" and row["Hướng"] == "76° Đông (E)" and row["Trạng thái"] == "di chuyển"
     assert "Frame 2/2" in uav.log_edit.toPlainText()
 
-    # "Thêm quỹ đạo lên bản đồ khi xong" is on by default
+    # "Thêm quỹ đạo lên bản đồ khi xong" is on by default: shapefiles + the UAV images (not the mask)
     group = QgsProject.instance().layerTreeRoot().findGroup("Quỹ đạo UAV - oto3_ketqua")
     assert group is not None and [n.name() for n in group.children()] == [
-        "Quỹ đạo - oto3_ketqua", "Điểm phương tiện - oto3_ketqua"]
-    assert QgsProject.instance().mapLayersByName("Quỹ đạo - oto3_ketqua")[0].featureCount() == 2
+        "Đường đi phương tiện", "Điểm phương tiện", "Ảnh UAV"]
+    tracks = QgsProject.instance().mapLayersByName("Đường đi phương tiện")[0]
+    assert tracks.source().replace("\\", "/").endswith("shapefile/2_duong_di_phuong_tien.shp")
+    assert tracks.featureCount() == 2
+    images = group.findGroup("Ảnh UAV").children()
+    assert [n.name() for n in images] == ["DJI_20260328162929_0524_V", "DJI_20260328162927_0523_V"]
+    assert [n.itemVisibilityChecked() for n in images] == [True, False]  # only the latest shown
 
     # Settings are remembered for the next time
     from vgeoint.app.dialogs.uav_trajectory import load_settings
 
     assert load_settings()["conf"] == 0.3 and load_settings()["input_dir"] == str(uav.images)
+
+
+def test_results_without_shapefile_use_geojson(uav, qtbot, monkeypatch):
+    from qgis.core import QgsProject
+
+    monkeypatch.setenv("UAV_MODE", "geojson-only")
+    uav.edits["input_dir"].setText(str(uav.images))
+    uav.edits["output_dir"].setText(str(uav.images) + "_ketqua")
+    uav.run_btn.click()
+    qtbot.waitUntil(lambda: uav.run_btn.isEnabled(), timeout=30000)
+    tracks = QgsProject.instance().mapLayersByName("Đường đi phương tiện")[0]
+    assert tracks.source().replace("\\", "/").split("|")[0].endswith("oto3_ketqua/tracks.geojson")
 
 
 def test_failed_run(uav, qtbot, monkeypatch):

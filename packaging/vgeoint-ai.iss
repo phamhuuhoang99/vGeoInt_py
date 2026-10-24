@@ -22,7 +22,10 @@ OutputBaseFilename=vGeoInt-AI-Setup-{#AppVersion}
 ; Model weights do not compress; 7z/lzma2 still helps the conda packages a little.
 Compression=lzma2/fast
 SolidCompression=no
-DiskSpanning=no
+; PyTorch with its CUDA libraries makes the add-on larger than one setup .exe can hold (~2.1 GB):
+; Setup.exe + Setup-N.bin files, kept together in one folder.
+DiskSpanning=yes
+DiskSliceSize=max
 WizardStyle=modern
 
 [Files]
