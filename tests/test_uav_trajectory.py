@@ -107,6 +107,18 @@ def test_menu_opens_the_dialog(window):
     dialogs[-1].close()
 
 
+def test_no_person_option(window):
+    from vgeoint.app.dialogs.uav_trajectory import SETTINGS_KEY, UavTrajectoryDialog, load_settings
+    from vgeoint.common.utils import settings
+
+    settings().setValue(SETTINGS_KEY, json.dumps({"classes": ["car", "person"]}))  # older version
+    assert load_settings()["classes"] == ["car"]
+    dlg = UavTrajectoryDialog(window, window.map_canvas, window.layer_tree_view)
+    assert "person" not in dlg.class_checks and len(dlg.class_checks) == 5
+    dlg.close()
+    settings().remove(SETTINGS_KEY)
+
+
 def test_defaults_and_input_folder(uav):
     assert uav.windowTitle() == "Phát hiện quỹ đạo trên ảnh UAV"
     assert [k for k, c in uav.class_checks.items() if c.isChecked()] == ["car", "truck", "bus", "motorcycle", "bicycle"]
@@ -154,7 +166,7 @@ def test_run_shows_results_and_adds_tracks_to_map(uav, qtbot):
     uav.spins["conf"].setValue(0.3)
     uav.switches["no_tta"].setChecked(True)
     uav.switches["keep_static"].setChecked(True)
-    uav.class_checks["person"].setChecked(True)
+    uav.class_checks["car"].setChecked(False)
     uav.run_btn.click()
     assert not uav.run_btn.isEnabled() and uav.stop_btn.isEnabled()
     qtbot.waitUntil(lambda: uav.run_btn.isEnabled(), timeout=30000)
@@ -164,7 +176,7 @@ def test_run_shows_results_and_adds_tracks_to_map(uav, qtbot):
     assert args[:6] == ["--input-dir", str(uav.images), "--output-dir", out, "--model", uav.edits["model"].text()]
     assert args[args.index("--conf") + 1] == "0.3" and args[args.index("--device") + 1] == "auto"
     assert "--no-tta" in args and "--keep-static" in args and "--no-sahi" not in args
-    assert args[args.index("--classes") + 1] == "car,truck,bus,motorcycle,bicycle,person"
+    assert args[args.index("--classes") + 1] == "truck,bus,motorcycle,bicycle"
 
     assert uav.status_label.text() == "Hoàn thành ✔" and uav.progress.value() == 100
     assert [uav.image_list.item(i).text() for i in range(uav.image_list.count())] == [

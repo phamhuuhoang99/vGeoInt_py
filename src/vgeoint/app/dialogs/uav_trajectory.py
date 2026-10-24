@@ -107,14 +107,13 @@ DEFAULTS = {
     "classes": ["car", "truck", "bus", "motorcycle", "bicycle"],
 }
 
-# (tên lớp trong model, nhãn hiển thị)
+# (tên lớp trong model, nhãn hiển thị). Vehicles only: "person" of the Tkinter GUI was removed.
 CLASS_OPTIONS = [
     ("car", "Ô tô (car)"),
     ("truck", "Xe tải (truck)"),
     ("bus", "Xe buýt (bus)"),
     ("motorcycle", "Xe máy (motorbike)"),
     ("bicycle", "Xe đạp (bicycle)"),
-    ("person", "Người (person)"),
 ]
 
 # (nhãn, khóa, min, max, bước, ghi chú, số chữ số thập phân; 0 = số nguyên)
@@ -247,6 +246,8 @@ def load_settings() -> dict:
         s.update(json.loads(str(settings().value(SETTINGS_KEY, "") or "{}")))
     except ValueError:
         pass
+    offered = {key for key, _ in CLASS_OPTIONS}
+    s["classes"] = [c for c in s["classes"] if c in offered]  # e.g. "person" saved by an older version
     return s
 
 
@@ -425,7 +426,7 @@ class UavTrajectoryDialog(QDialog):
             grid.addWidget(check, i // 2, i % 2)
         row = QHBoxLayout()
         all_vehicles = QPushButton("Tất cả xe", self)
-        all_vehicles.clicked.connect(lambda: self.set_classes([k for k, _ in CLASS_OPTIONS if k != "person"]))
+        all_vehicles.clicked.connect(lambda: self.set_classes([k for k, _ in CLASS_OPTIONS]))
         none = QPushButton("Bỏ chọn", self)
         none.clicked.connect(lambda: self.set_classes([]))
         row.addWidget(all_vehicles)
