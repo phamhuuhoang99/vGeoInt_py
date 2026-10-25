@@ -161,7 +161,11 @@ class MenuBar:
         """Not in the C++ app: trajectories of moving objects (the Detect & Draw tool, ported)."""
         self.trajectory_menu = QMenu("Phát hiện quỹ đạo", self.menu_bar)
         self.uav_trajectory_act = _action("tracking.svg", "Phát hiện quỹ đạo trên ảnh UAV...", self.trajectory_menu)
+        self.satellite_trajectory_act = _action(
+            "ship_detection.svg", "Phát hiện quỹ đạo bằng ảnh vệ tinh...", self.trajectory_menu
+        )
         self.trajectory_menu.addAction(self.uav_trajectory_act)
+        self.trajectory_menu.addAction(self.satellite_trajectory_act)
         self.menu_bar.addMenu(self.trajectory_menu)
 
     def create_satellite_menu(self):

@@ -100,7 +100,7 @@ def test_menu_opens_the_dialog(window):
     from vgeoint.app.dialogs.uav_trajectory import UavTrajectoryDialog
 
     mb = window.menu_bar_
-    assert [a.text() for a in mb.trajectory_menu.actions()] == ["Phát hiện quỹ đạo trên ảnh UAV..."]
+    assert mb.trajectory_menu.actions()[0].text() == "Phát hiện quỹ đạo trên ảnh UAV..."
     mb.uav_trajectory_act.trigger()
     dialogs = window.findChildren(UavTrajectoryDialog)
     assert dialogs and dialogs[-1].isVisible() and not dialogs[-1].isModal()

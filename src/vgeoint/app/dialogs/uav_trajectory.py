@@ -14,6 +14,7 @@ from qgis.core import (
     Qgis,
     QgsCategorizedSymbolRenderer,
     QgsCoordinateTransform,
+    QgsFillSymbol,
     QgsLineSymbol,
     QgsMarkerLineSymbolLayer,
     QgsMarkerSymbol,
@@ -166,27 +167,32 @@ def _track_symbol(geometry_type, color: QColor):
             {"name": "arrowhead", "color": name, "outline_color": name, "size": "3.5", "outline_width": "0.6"}))
         symbol.appendSymbolLayer(arrow)
         return symbol
+    if geometry_type == Qgis.GeometryType.Polygon:  # outline only, the image stays visible
+        return QgsFillSymbol.createSimple(
+            {"color": "0,0,0,0", "outline_color": name, "outline_width": "0.5", "style": "no"})
     return QgsMarkerSymbol.createSimple(
         {"name": "circle", "color": name, "outline_color": "#000000", "size": "2.6", "outline_width": "0.3"})
 
 
-def style_result_layer(layer: QgsVectorLayer):
-    """One colour per vehicle (same as on the result images): tracks with an arrow at the end, points."""
-    line = layer.geometryType() == Qgis.GeometryType.Line
-    if "track_id" in layer.fields().names():
-        index = layer.fields().indexOf("track_id")
+def color_by_track(layer: QgsVectorLayer, field: str = "track_id"):
+    """One colour per track (legend "#<id>", each one can be hidden); a single red style without `field`."""
+    if field in layer.fields().names():
         categories = []
-        for value in sorted(v for v in layer.uniqueValues(index) if v is not None):
+        for value in sorted(v for v in layer.uniqueValues(layer.fields().indexOf(field)) if v is not None):
             try:
                 color = track_color(int(value))
             except (TypeError, ValueError):
                 color = QColor("#e31a1c")
             categories.append(QgsRendererCategory(value, _track_symbol(layer.geometryType(), color), f"#{value}"))
-        renderer = QgsCategorizedSymbolRenderer("track_id", categories)
+        layer.setRenderer(QgsCategorizedSymbolRenderer(field, categories))
     else:
-        renderer = QgsSingleSymbolRenderer(_track_symbol(layer.geometryType(), QColor("#e31a1c")))
-    layer.setRenderer(renderer)
-    if line:
+        layer.setRenderer(QgsSingleSymbolRenderer(_track_symbol(layer.geometryType(), QColor("#e31a1c"))))
+
+
+def style_result_layer(layer: QgsVectorLayer):
+    """One colour per vehicle (same as on the result images): tracks with an arrow at the end, points."""
+    color_by_track(layer, "track_id")
+    if layer.geometryType() == Qgis.GeometryType.Line:
         label_speed(layer)
     else:
         label_time(layer)
