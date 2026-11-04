@@ -26,6 +26,10 @@ FAKE_DETECT = textwrap.dedent('''
     with open(os.path.join(out, "detections.csv"), "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
         w.writerow(["image", "class", "conf", "cx", "cy", "w", "h", "angle_rad", "x1", "y1", "x2", "y2", "x3", "y3", "x4", "y4", "map_x", "map_y"])
+        if os.environ.get("OBJ_PIXEL"):  # plain photos: pixel boxes only, no map coordinates / shapefile
+            w.writerow(["photo.jpg", cls, "0.910", "20.0", "15.0", "8", "6", "0.1", 16, 12, 24, 12, 24, 18, 16, 18, "", ""])
+            result(output_dir=out, counts={cls: 1}, georeferenced=0)
+            sys.exit(0)
         w.writerow(["image1.tif", cls, "0.910", "20.0", "15.0", "8", "6", "0.1", 16, 12, 24, 12, 24, 18, 16, 18, 585010, 2324992])
     print(f"Ảnh 1/1 image1.tif: 1 {cls}", flush=True)
     path = os.path.join(out, "detections.geojson")
@@ -108,6 +112,32 @@ def test_run_detects_and_adds_to_map(obj, qtbot):
     layer = group.children()[0].layer()
     assert [c.label() for c in layer.renderer().categories()] == (
         ["Xe tăng/xe bọc thép"] if obj.TARGET == "tank" else ["Máy bay", "Trực thăng"])
+
+
+def test_photos_without_coordinates_go_to_the_map_in_pixels(obj, qtbot, monkeypatch, tmp_path):
+    import cv2
+    import numpy as np
+    from qgis.core import QgsProject
+
+    monkeypatch.setenv("OBJ_PIXEL", "1")
+    photos = tmp_path / "photos"
+    photos.mkdir()
+    cv2.imwrite(str(photos / "photo.jpg"), np.full((30, 40, 3), 128, np.uint8))
+    cv2.imwrite(str(photos / "empty.jpg"), np.full((30, 40, 3), 64, np.uint8))
+    obj._set_source(str(photos))
+    obj.run_btn.click()
+    qtbot.waitUntil(lambda: obj.run_btn.isEnabled(), timeout=30000)
+
+    group = QgsProject.instance().layerTreeRoot().findGroup(f"{obj.TITLE} - photos_{obj.TARGET}")
+    subs = group.children()
+    assert [n.name() for n in subs] == ["empty (ảnh không có toạ độ, hiển thị theo pixel)",
+                                        "photo (ảnh không có toạ độ, hiển thị theo pixel)"]
+    assert [n.itemVisibilityChecked() for n in subs] == [False, True]  # the image with a detection
+    boxes, image = (n.layer() for n in subs[1].children())
+    assert boxes.featureCount() == 1 and boxes.crs().authid() == "EPSG:3857"
+    # image placed at x = column, y = -row; the box (16..24, 12..18 px) drawn on it
+    assert image.extent().toString(0) == "0,-30 : 40,0"
+    assert boxes.extent().toString(0) == "16,-18 : 24,-12"
 
 
 def test_copied_code_is_complete():

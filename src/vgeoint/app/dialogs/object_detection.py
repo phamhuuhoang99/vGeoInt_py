@@ -3,16 +3,27 @@
 objdetect/run_detect.py runs in the ai environment (YOLO11-OBB: DOTA model for aircraft and helicopters,
 the trained tank model for armoured vehicles, tiled inference + rotated NMS of detecttank/common.py).
 Same layout as the trajectory dialogs: options on the left; result images / table / log on the right.
-Boxes of georeferenced images (GeoTIFF) are added to the map with their images; plain photos (JPG/PNG)
-only give annotated images and the table.
+Results are added to the map with their images: georeferenced images (GeoTIFF) in place, plain photos
+(JPG/PNG) in pixel coordinates (one sub-group per image).
 """
 
 import csv
 import json
 import os
 
-from qgis.core import Qgis, QgsCategorizedSymbolRenderer, QgsCoordinateTransform, QgsFillSymbol, QgsProject, \
-    QgsRasterLayer, QgsRendererCategory, QgsVectorLayer
+from qgis.core import (
+    Qgis,
+    QgsCategorizedSymbolRenderer,
+    QgsCoordinateTransform,
+    QgsFeature,
+    QgsFillSymbol,
+    QgsGeometry,
+    QgsPointXY,
+    QgsProject,
+    QgsRasterLayer,
+    QgsRendererCategory,
+    QgsVectorLayer,
+)
 from qgis.PyQt.QtCore import Qt, QUrl
 from qgis.PyQt.QtGui import QDesktopServices, QTextCursor
 from qgis.PyQt.QtWidgets import (
@@ -223,7 +234,7 @@ class ObjectDetectionDialog(QDialog):
         self.progress.setRange(0, 100)
         self.status_label = QLabel("Sẵn sàng", self)
         self.status_label.setWordWrap(True)
-        self.add_to_map_check = QCheckBox("Thêm kết quả lên bản đồ khi xong (ảnh có toạ độ)", self)
+        self.add_to_map_check = QCheckBox("Thêm kết quả lên bản đồ khi xong", self)
         self.add_to_map_check.setChecked(bool(self.s["add_to_map"]))
         for w in (self.run_btn, self.stop_btn, self.progress, self.status_label, self.add_to_map_check):
             layout.addWidget(w)
@@ -399,7 +410,7 @@ class ObjectDetectionDialog(QDialog):
             self.set_running(False, "Hoàn thành ✔" + (f": {summary}" if summary else ""))
             self.load_results()
             self.tabs.setCurrentIndex(0)
-            if self.add_to_map_check.isChecked() and self.detections_shapefile():
+            if self.add_to_map_check.isChecked():
                 self.add_results_to_map()
         else:
             self.set_running(False, "Đã dừng" if self._stopped else f"Lỗi (mã {code}) - xem tab Nhật ký")
@@ -462,38 +473,102 @@ class ObjectDetectionDialog(QDialog):
         else:
             QMessageBox.information(self, "Thông báo", "Thư mục kết quả chưa tồn tại.")
 
-    def add_results_to_map(self) -> int:
-        """Detected boxes (outline per class, label "<loại> <độ tin cậy>") over the georeferenced images."""
-        path = self.detections_shapefile()
-        if not path:
-            QMessageBox.information(self, "Thông báo", "Không có kết quả có toạ độ: ảnh đầu vào không phải "
-                                                       "GeoTIFF có toạ độ (xem ảnh kết quả và bảng đối tượng).")
-            return 0
-        layer = QgsVectorLayer(path, self.TITLE.split(": ")[-1], "ogr")
-        if not layer.isValid():
-            return 0
+    def style_boxes(self, layer: QgsVectorLayer):
+        """Outline per class, label "<loại> <độ tin cậy>"."""
         categories = [QgsRendererCategory(name, QgsFillSymbol.createSimple(
             {"color": "0,0,0,0", "style": "no", "outline_color": color, "outline_width": "0.6"}), label)
             for name, (label, color) in CLASS_STYLE.items() if name in self.CLASSES]
         layer.setRenderer(QgsCategorizedSymbolRenderer("class", categories))
         _set_label(layer, "\"loai\" || ' ' || format_number(\"conf\", 2)", Qgis.LabelPlacement.OverPoint)
-        images = [QgsRasterLayer(p, os.path.splitext(os.path.basename(p))[0], "gdal") for p in self.source_files()]
-        images = [im for im in images if im.isValid() and im.crs().isValid()]
+
+    def pixel_results(self) -> list[tuple[str, QgsRasterLayer, QgsVectorLayer]]:
+        """(name, image, boxes) of the images without georeferencing, in pixel coordinates.
+
+        QGIS places such an image at x = column, y = -row with no CRS (GDAL then complains when drawing):
+        a VRT next to the results gives it that same frame with a CRS (EPSG:3857 metres = pixels), and the
+        boxes of detections.csv are drawn as (x, -y) in it. The images themselves are not modified.
+        """
+        from osgeo import gdal
+
+        rows: dict[str, list[dict]] = {}
+        path = os.path.join(self.output_dir(), "detections.csv")
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8-sig") as f:
+                for rec in csv.DictReader(f):
+                    if rec.get("class") in self.CLASSES and not rec.get("map_x"):
+                        rows.setdefault(rec["image"], []).append(rec)
+        by_name = {os.path.basename(p): p for p in self.source_files()}
+        vrt_dir = os.path.join(self.output_dir(), "pixel")
+        results = []
+        for name, path in by_name.items():
+            ds = gdal.Open(path)
+            if ds is None or ds.GetGeoTransform(can_return_null=True) is not None or ds.GetProjection():
+                continue  # unreadable, or georeferenced (those come with the shapefile)
+            os.makedirs(vrt_dir, exist_ok=True)
+            vrt = os.path.join(vrt_dir, os.path.splitext(name)[0] + ".vrt")
+            gdal.Translate(vrt, ds, format="VRT", outputSRS="EPSG:3857",
+                           outputBounds=[0, 0, ds.RasterXSize, -ds.RasterYSize])
+            ds = None
+            stem = os.path.splitext(name)[0]
+            raster = QgsRasterLayer(vrt, stem, "gdal")
+            boxes = QgsVectorLayer("Polygon?crs=EPSG:3857&field=image:string&field=class:string&field=loai:string"
+                                   "&field=conf:double", self.TITLE.split(": ")[-1], "memory")
+            features = []
+            for rec in rows.get(name, []):
+                ring = [QgsPointXY(float(rec[f"x{i}"]), -float(rec[f"y{i}"])) for i in range(1, 5)]
+                feature = QgsFeature(boxes.fields())
+                feature.setGeometry(QgsGeometry.fromPolygonXY([ring + [ring[0]]]))
+                feature.setAttributes([name, rec["class"], CLASS_STYLE[rec["class"]][0], float(rec["conf"])])
+                features.append(feature)
+            boxes.dataProvider().addFeatures(features)
+            boxes.updateExtents()
+            self.style_boxes(boxes)
+            results.append((stem, raster, boxes))
+        return results
+
+    def add_results_to_map(self) -> int:
+        """Detected boxes over their images: georeferenced ones in place, the others in pixel coordinates."""
+        path = self.detections_shapefile()
+        layer = QgsVectorLayer(path, self.TITLE.split(": ")[-1], "ogr") if path else None
+        pixel = self.pixel_results()
+        if (layer is None or not layer.isValid()) and not pixel:
+            QMessageBox.information(self, "Thông báo", "Chưa có kết quả. Hãy chạy phát hiện trước.")
+            return 0
 
         project = QgsProject.instance()
         group = project.layerTreeRoot().insertGroup(0, f"{self.TITLE} - {os.path.basename(self.output_dir())}")
-        project.addMapLayer(layer, False)
-        group.addLayer(layer)
-        for image in images:
-            project.addMapLayer(image, False)
-            group.addLayer(image).setExpanded(False)
-        self.output_files = [layer.source()] + [im.source() for im in images]
-        if self.map_canvas is not None and layer.featureCount():
-            box = QgsCoordinateTransform(layer.crs(), self.map_canvas.mapSettings().destinationCrs(),
-                                         project).transformBoundingBox(layer.extent())
-            self.map_canvas.setExtent(box.buffered(max(box.width(), box.height()) * 0.2))
+        added, focus = [], None
+        if layer is not None and layer.isValid():
+            self.style_boxes(layer)
+            images = [QgsRasterLayer(p, os.path.splitext(os.path.basename(p))[0], "gdal") for p in self.source_files()]
+            images = [im for im in images if im.isValid() and im.crs().isValid()]
+            project.addMapLayer(layer, False)
+            group.addLayer(layer)
+            for image in images:
+                project.addMapLayer(image, False)
+                group.addLayer(image).setExpanded(False)
+            added += [layer, *images]
+            focus = layer if layer.featureCount() else None
+        # Images without coordinates: one sub-group each (boxes + image); only one is shown (they all sit
+        # at the same pixel coordinates): the first one with detections
+        shown = next((i for i, (_, _, boxes) in enumerate(pixel) if boxes.featureCount()), 0)
+        for i, (stem, raster, boxes) in enumerate(pixel):
+            sub = group.addGroup(f"{stem} (ảnh không có toạ độ, hiển thị theo pixel)")
+            sub.setItemVisibilityChecked(i == shown and focus is None)
+            sub.setExpanded(i == shown)
+            for item in (boxes, raster):
+                project.addMapLayer(item, False)
+                sub.addLayer(item).setExpanded(False)
+            added += [boxes, raster]
+            if i == shown and focus is None:
+                focus = raster
+        self.output_files = [item.source() for item in added]
+        if self.map_canvas is not None and focus is not None:
+            box = QgsCoordinateTransform(focus.crs(), self.map_canvas.mapSettings().destinationCrs(),
+                                         project).transformBoundingBox(focus.extent())
+            self.map_canvas.setExtent(box.buffered(max(box.width(), box.height()) * 0.05))
             self.map_canvas.refresh()
-        return 1 + len(images)
+        return len(added)
 
     def done(self, result: int):
         if self.process is not None and self.process.is_running():
