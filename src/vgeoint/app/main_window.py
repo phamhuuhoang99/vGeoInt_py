@@ -1121,6 +1121,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             mb.image_filter_act: mc.image_filter,
             mb.image_split_act: mc.image_split,
             mb.color_space_convertion_act: mc.color_space_convertion,
+            mb.image_enhancement_act: mc.image_enhancement,
+            mb.pca_act: mc.pca,
             mb.change_detection_act: mc.change_detection,
             mb.motion_detection_act: mc.motion_detection,
             mb.object_tracking_act: mc.object_tracking,

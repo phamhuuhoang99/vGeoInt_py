@@ -167,6 +167,12 @@ class MainController:
     def image_split(self):
         self._std_dialog("image_split", "ImageSplitDialog")
 
+    def image_enhancement(self):
+        self._std_dialog("raster_analysis", "ImageEnhancementDialog")
+
+    def pca(self):
+        self._std_dialog("raster_analysis", "PcaDialog")
+
     def color_space_convertion(self):
         self._std_dialog("color_space_convertion", "ColorSpaceConvertionDialog")
 

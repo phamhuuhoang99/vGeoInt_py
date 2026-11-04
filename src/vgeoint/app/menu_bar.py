@@ -122,6 +122,9 @@ class MenuBar:
         self.image_split_act = _action("SplitImage.svg", "Tách kênh ảnh", m)
         self.image_concatenating_act = _action("ConcatenateImages.svg", "Gộp kênh ảnh", m)
         self.color_space_convertion_act = _action("ColorSpace.svg", "Chuyển đổi không gian màu", m)
+        # not in the C++ app
+        self.image_enhancement_act = _action("BrightnessContrast.svg", "Tăng cường ảnh", m)
+        self.pca_act = _action("Band.svg", "Phân tích thành phần chính (PCA)", m)
         self.change_detection_act = _action("ChangeDetection.svg", "Phát hiện thay đổi", m)
         # Temporary use change detection icon
         self.motion_detection_act = _action("ChangeDetection.svg", "Phát hiện biến động", m)
@@ -142,6 +145,8 @@ class MenuBar:
             self.image_split_act,
             self.image_concatenating_act,
             self.color_space_convertion_act,
+            self.image_enhancement_act,
+            self.pca_act,
             self.change_detection_act,
             self.motion_detection_act,
             self.object_tracking_act,
