@@ -1,6 +1,16 @@
-"""Port of qgsmapsavedialog.cpp — export the current map view to PDF."""
+"""Port of qgsmapsavedialog.cpp — export the current map view.
 
+The C++ dialog only wrote a plain PDF. Georeferenced outputs are added (not in the C++ app): GeoTIFF,
+PNG / JPG with a world file and the CRS (.aux.xml), and a georeferenced PDF. The map is rendered by
+QgsMapRendererTask (background); raster formats get their georeferencing with GDAL from the rendered
+extent (rotation forced to 0 so that the image stays north-up).
+"""
+
+import os
+import tempfile
 from pathlib import Path
+
+from osgeo import gdal
 
 from qgis.core import (
     Qgis,
@@ -15,11 +25,41 @@ from qgis.core import (
 )
 from qgis.gui import QgsExtentGroupBox
 from qgis.PyQt.QtCore import QDir, QSize, QUrl
-from qgis.PyQt.QtWidgets import QDialog, QFileDialog
+from qgis.PyQt.QtWidgets import QComboBox, QDialog, QFileDialog, QLabel, QWidget
 
 from vgeoint.common.ui import load_ui_class
+from vgeoint.common.utils import settings
 
 Ui_QgsMapSaveDialog = load_ui_class("app", "qgsmapsavedialog")
+
+# key -> (label, file filter, extension)
+FORMATS = {
+    "pdf": ("PDF (bản in vector, không toạ độ)", "PDF (*.pdf *.PDF)", ".pdf"),
+    "geotiff": ("GeoTIFF (ảnh có toạ độ)", "GeoTIFF (*.tif *.tiff)", ".tif"),
+    "geopdf": ("PDF có toạ độ (GeoPDF, dạng ảnh)", "PDF (*.pdf *.PDF)", ".pdf"),
+    "png": ("PNG + world file (.pgw) + hệ toạ độ", "PNG (*.png)", ".png"),
+    "jpg": ("JPG + world file (.jgw) + hệ toạ độ", "JPEG (*.jpg *.jpeg)", ".jpg"),
+}
+
+
+def georeference(src: str, dst: str, driver: str, extent: QgsRectangle, wkt: str, dpi: int):
+    """Copy the rendered image `src` to `dst` (GTiff / PDF) with the map extent and CRS."""
+    options = ["COMPRESS=DEFLATE", "TILED=YES"] if driver == "GTiff" else [f"DPI={dpi}"]
+    out = gdal.Translate(dst, src, format=driver, outputSRS=wkt or None, creationOptions=options,
+                         outputBounds=[extent.xMinimum(), extent.yMaximum(), extent.xMaximum(), extent.yMinimum()])
+    if out is None:
+        raise RuntimeError(gdal.GetLastErrorMsg() or f"Không ghi được {dst}")
+    out = None
+
+
+def write_crs_sidecar(path: str, extent: QgsRectangle, wkt: str):
+    """CRS (and extent) of a PNG / JPG in GDAL's <file>.aux.xml, read by QGIS, ArcGIS, GDAL."""
+    ds = gdal.Open(path)
+    width, height = ds.RasterXSize, ds.RasterYSize
+    ds.SetGeoTransform((extent.xMinimum(), extent.width() / width, 0, extent.yMaximum(), 0, -extent.height() / height))
+    if wkt:
+        ds.SetProjection(wkt)
+    ds = None
 
 
 class MapSaveDialog(QDialog, Ui_QgsMapSaveDialog):
@@ -53,7 +93,25 @@ class MapSaveDialog(QDialog, Ui_QgsMapSaveDialog):
         self.mLockAspectRatio.lockChanged.connect(self.lock_changed)
         self.update_output_size()
 
-        self.okBtn.clicked.connect(self.export_pdf)
+        self.setWindowTitle("Xuất bản đồ")
+        # Vietnamese labels of the QGIS extent widget, as in the imagery download dialogs
+        from vgeoint.app.dialogs.google_earth_engine import EXTENT_WIDGET_TEXTS
+
+        self.mExtentGroupBox.setTitleBase("Phạm vi xuất")
+        for name, text in EXTENT_WIDGET_TEXTS.items():
+            child = self.mExtentGroupBox.findChild(QWidget, name)
+            if child is not None:
+                child.setVisible(text is not None)
+                if text is not None:
+                    child.setText(text)
+        self.format_combo = QComboBox(self)
+        for key, (label, _filter, _ext) in FORMATS.items():
+            self.format_combo.addItem(label, key)
+        self.gridLayout.addWidget(QLabel("Định dạng", self), 6, 0)
+        self.gridLayout.addWidget(self.format_combo, 6, 1)
+        self.format_combo.setCurrentIndex(max(0, self.format_combo.findData(
+            settings().value("MapExport/Format", "pdf"))))
+        self.okBtn.clicked.connect(self.export_map)
         self.cancelBtn.clicked.connect(self.close)
 
     def update_dpi(self, dpi: int):
@@ -156,33 +214,76 @@ class MapSaveDialog(QDialog, Ui_QgsMapSaveDialog):
         ms.setExpressionContext(context)
 
     def export_pdf(self):
+        """Kept for callers of the C++ name: plain PDF."""
+        self.format_combo.setCurrentIndex(self.format_combo.findData("pdf"))
+        self.export_map()
+
+    def export_map(self, file_name: str | None = None) -> QgsMapRendererTask | None:
+        fmt = self.format_combo.currentData()
+        label, file_filter, ext = FORMATS[fmt]
         s = QgsSettings()
-        last_dir = s.value("UI/lastSaveAsImageDir", QDir.homePath())
-        file_name, _ = QFileDialog.getSaveFileName(
-            self.main_window, self.tr("Save Map As"), last_dir, self.tr("PDF Format") + " (*.pdf *.PDF)"
-        )
+        if file_name is None:
+            last_dir = s.value("UI/lastSaveAsImageDir", QDir.homePath())
+            file_name, _ = QFileDialog.getSaveFileName(self.main_window, "Xuất bản đồ", last_dir, file_filter)
         if not file_name:
-            return
+            return None
+        if not Path(file_name).suffix:
+            file_name += ext
         s.setValue("UI/lastSaveAsImageDir", str(Path(file_name).parent))
+        settings().setValue("MapExport/Format", fmt)
 
         ms = QgsMapSettings()
         self.apply_map_settings(ms)
         bar = self.main_window.message_bar
+        title = "Xuất bản đồ"
         if not ms.layers():
-            bar.pushWarning("Xuất PDF", "Không thể xuất PDF: chưa có layer nào. Vui lòng thêm ít nhất một layer.")
-            return
+            bar.pushWarning(title, "Không thể xuất: chưa có layer nào. Vui lòng thêm ít nhất một layer.")
+            return None
+        if fmt != "pdf":
+            ms.setRotation(0)  # georeferenced images are north-up
+            if ms.flags() & Qgis.MapSettingsFlag.ForceVectorOutput:
+                ms.setFlag(Qgis.MapSettingsFlag.ForceVectorOutput, False)
+        extent = QgsRectangle(ms.visibleExtent())
+        wkt = ms.destinationCrs().toWkt(Qgis.CrsWktVariant.PreferredGdal) if ms.destinationCrs().isValid() else ""
+        dpi = int(ms.outputDpi())
 
-        task = QgsMapRendererTask(ms, file_name, "PDF", False)
+        # the image QGIS renders: the final file for PDF / PNG / JPG, a temporary PNG for GeoTIFF / GeoPDF
+        if fmt in ("geotiff", "geopdf"):
+            handle, render_path = tempfile.mkstemp(suffix=".png", prefix="vgeoint_map_")
+            os.close(handle)
+            render_format = "PNG"
+        else:
+            render_path = file_name
+            render_format = {"pdf": "PDF", "png": "PNG", "jpg": "JPG"}[fmt]
+        task = QgsMapRendererTask(ms, render_path, render_format, False)
+        if fmt in ("png", "jpg"):
+            task.setSaveWorldFile(True)
         if self.mDrawAnnotations.isChecked():
             task.addAnnotations(QgsProject.instance().annotationManager().annotations())
         if self.mDrawDecorations.isChecked() and self.decorations:
             task.addDecorations(self.decorations)
 
         folder_url = QUrl.fromLocalFile(str(Path(file_name).parent)).toString()
-        task.renderingComplete.connect(
-            lambda: bar.pushSuccess(
-                "Xuất PDF", f'Xuất thành công tại <a href="{folder_url}">{QDir.toNativeSeparators(file_name)}</a>'
-            )
-        )
-        task.errorOccurred.connect(lambda _code: bar.pushWarning("Xuất PDF", "Xảy ra lỗi trong quá trình xuất"))
+
+        def finished():
+            try:
+                if fmt == "geotiff":
+                    georeference(render_path, file_name, "GTiff", extent, wkt, dpi)
+                elif fmt == "geopdf":
+                    georeference(render_path, file_name, "PDF", extent, wkt, dpi)
+                elif fmt in ("png", "jpg"):
+                    write_crs_sidecar(file_name, extent, wkt)
+            except RuntimeError as e:
+                bar.pushWarning(title, f"Xuất thất bại: {e}")
+                return
+            finally:
+                if render_path != file_name and os.path.exists(render_path):
+                    os.remove(render_path)
+            georef = "" if fmt == "pdf" else " (có toạ độ)"
+            bar.pushSuccess(title, f'Xuất {label.split(" (")[0]}{georef} thành công tại '
+                                   f'<a href="{folder_url}">{QDir.toNativeSeparators(file_name)}</a>')
+
+        task.renderingComplete.connect(finished)
+        task.errorOccurred.connect(lambda _code: bar.pushWarning(title, "Xảy ra lỗi trong quá trình xuất"))
         QgsApplication.taskManager().addTask(task)
+        return task

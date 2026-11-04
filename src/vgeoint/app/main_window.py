@@ -983,7 +983,7 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             file_menu.addAction(metadata_act)
             self.mainToolBar.addAction(metadata_act)
         file_action("SaveAs.svg", "Xuất ra với tên...", mc.save_as)
-        file_action("ExportPdf.svg", "Xuất Pdf", mc.save_map_as_pdf)
+        file_action("ExportPdf.svg", "Xuất bản đồ (PDF, GeoTIFF...)", mc.save_map_as_pdf)
 
         file_menu.addSeparator()
         exit_act = QAction(get_icon("Exit.svg"), "Thoát", file_menu)

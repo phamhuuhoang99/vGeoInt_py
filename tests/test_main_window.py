@@ -32,7 +32,7 @@ def test_file_menu(window):
         "-",
         "Cài đặt chung",
         "Xuất ra với tên...",
-        "Xuất Pdf",
+        "Xuất bản đồ (PDF, GeoTIFF...)",
         "-",
         "Thoát",
     ]

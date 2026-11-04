@@ -135,6 +135,48 @@ def test_map_save_dialog_settings(window):
     assert dlg.mDrawDecorations.text() == "Xuất các đối tượng đồ họa: Không có"
 
 
+@pytest.mark.parametrize("fmt", ["geotiff", "png", "jpg", "geopdf", "pdf"])
+def test_map_export_formats(window, tmp_path, qtbot, fmt):
+    """GeoTIFF / PNG / JPG / GeoPDF carry the map extent and CRS (the C++ dialog only wrote a plain PDF)."""
+    from osgeo import gdal
+    from qgis.core import QgsRectangle
+
+    from tests.conftest import make_raster
+    from vgeoint.app.dialogs.map_save import FORMATS, MapSaveDialog
+
+    window.main_controller.add_raster(make_raster(tmp_path / "anh.tif"))
+    window.layer_tree_map_canvas_bridge.setCanvasLayers()
+    canvas = window.map_canvas
+    canvas.setExtent(QgsRectangle(500100, 2299600, 500500, 2299900))
+    dlg = MapSaveDialog(window, canvas, [], [])
+    assert [dlg.format_combo.itemData(i) for i in range(dlg.format_combo.count())] == list(FORMATS)
+    dlg.format_combo.setCurrentIndex(dlg.format_combo.findData(fmt))
+    out = tmp_path / ("ban_do" + FORMATS[fmt][2])
+    task = dlg.export_map(str(out))
+    assert task is not None
+    qtbot.waitUntil(lambda: (item := window.message_bar.currentItem()) is not None
+                    and "thành công" in item.text(), timeout=30000)
+    assert out.exists() and out.stat().st_size > 0
+    assert not list(tmp_path.glob("vgeoint_map_*.png"))  # no temporary file left
+    if fmt == "pdf":
+        return
+    if fmt in ("png", "jpg"):
+        assert (tmp_path / ("ban_do" + {"png": ".pgw", "jpg": ".jgw"}[fmt])).exists()
+        assert (tmp_path / (out.name + ".aux.xml")).exists()
+    if fmt == "geopdf" and gdal.GetDriverByName("PDF").GetMetadataItem("DMD_EXTENSIONS") is None:
+        return
+    ds = gdal.Open(str(out))
+    if ds is None and fmt == "geopdf":
+        pytest.skip("GDAL here cannot read PDF back (no PDF rendering library)")
+    gt = ds.GetGeoTransform()
+    x0, y0 = gt[0], gt[3]
+    x1, y1 = x0 + gt[1] * ds.RasterXSize, y0 + gt[5] * ds.RasterYSize
+    extent = canvas.mapSettings().visibleExtent()
+    assert abs(x0 - extent.xMinimum()) < 50 and abs(y0 - extent.yMaximum()) < 50
+    assert x0 <= 500100 < 500500 <= x1 and y1 <= 2299600 < 2299900 <= y0
+    assert "32648" in ds.GetProjection() or "UTM zone 48N" in ds.GetProjection()
+
+
 def _mouse(canvas, kind, x, y, button, buttons=None):
     from qgis.gui import QgsMapMouseEvent
     from qgis.PyQt.QtCore import QPoint, QPointF, Qt
