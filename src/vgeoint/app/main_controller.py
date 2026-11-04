@@ -245,6 +245,12 @@ class MainController:
     def satellite_trajectory(self):
         self._modeless_dialog("satellite_trajectory", "SatelliteTrajectoryDialog")
 
+    def object_tank(self):
+        self._modeless_dialog("object_detection", "TankObjectDialog")
+
+    def object_aircraft(self):
+        self._modeless_dialog("object_detection", "AircraftObjectDialog")
+
     def _modeless_dialog(self, module: str, class_name: str):
         # Not modal: the map stays usable (pan/zoom, draw the region of interest, look at results).
         mw = self.main_window

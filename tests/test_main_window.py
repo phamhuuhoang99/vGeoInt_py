@@ -12,7 +12,8 @@ from tests.conftest import action_texts
 def test_menus(window):
     titles = [a.text() for a in window.mainMenuBar.actions()]
     assert titles == [
-        "File", "Xem", "Layer", "Vector", "Raster", "Công cụ", "Phát hiện quỹ đạo", "Tải ảnh vệ tinh", "Trợ giúp",
+        "File", "Xem", "Layer", "Vector", "Raster", "Công cụ", "Phát hiện đối tượng", "Phát hiện quỹ đạo",
+        "Tải ảnh vệ tinh", "Trợ giúp",
     ]
 
 

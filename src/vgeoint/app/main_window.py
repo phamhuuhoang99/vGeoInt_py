@@ -1136,6 +1136,8 @@ class MainWindow(QMainWindow, Ui_MainWindowClass):
             mb.google_earth_engine_act: mc.google_earth_engine,
             mb.free_imagery_act: mc.free_imagery,
             mb.uav_trajectory_act: mc.uav_trajectory,
+            mb.object_tank_act: mc.object_tank,
+            mb.object_aircraft_act: mc.object_aircraft,
             mb.satellite_trajectory_act: mc.satellite_trajectory,
             mb.annotation_manager_act: mc.annotation_manager,
             # Help menu

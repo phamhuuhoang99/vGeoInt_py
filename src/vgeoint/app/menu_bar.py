@@ -20,6 +20,7 @@ class MenuBar:
         self.create_vector_menu()
         self.create_raster_menu()
         self.create_tool_menu()
+        self.create_object_menu()
         self.create_trajectory_menu()
         self.create_satellite_menu()
         self.create_help_menu()
@@ -156,6 +157,15 @@ class MenuBar:
             m.addAction(act)
 
         self.menu_bar.addMenu(m)
+
+    def create_object_menu(self):
+        """Not in the C++ app: tanks / aircraft on satellite or UAV images (the D:/detecttank code)."""
+        self.object_menu = QMenu("Phát hiện đối tượng", self.menu_bar)
+        self.object_tank_act = _action("Engine/Tank.svg", "Xe tăng...", self.object_menu)
+        self.object_aircraft_act = _action("Engine/Airplane.svg", "Máy bay...", self.object_menu)
+        self.object_menu.addAction(self.object_tank_act)
+        self.object_menu.addAction(self.object_aircraft_act)
+        self.menu_bar.addMenu(self.object_menu)
 
     def create_trajectory_menu(self):
         """Not in the C++ app: trajectories of moving objects (the Detect & Draw tool, ported)."""
