@@ -1,7 +1,7 @@
 """Port of AveragingWidget, GaussianWidget, MedianWidget, SobelWidget, ScharrWidget, CannyWidget (.cpp);
-PrewittWidget is new (not in the C++ app)."""
+PrewittWidget and LaplacianWidget are new (not in the C++ app)."""
 
-from qgis.PyQt.QtWidgets import QRadioButton, QSpinBox, QWidget
+from qgis.PyQt.QtWidgets import QCheckBox, QComboBox, QFormLayout, QHBoxLayout, QLabel, QRadioButton, QSpinBox, QWidget
 
 from vgeoint.common.ui import load_ui_class
 
@@ -80,6 +80,35 @@ class PrewittWidget(ScharrWidget):
         super().__init__(parent)
         self.bothAxesRbtn = QRadioButton("Cả hai hướng (độ lớn gradient)", self)
         self.gridLayout.addWidget(self.bothAxesRbtn, 4, 0)
+
+
+class LaplacianWidget(QWidget):
+    """Kernel size (1, 3, 5, 7) and an optional Gaussian pre-filter (Laplacian of Gaussian, less noise)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        form = QFormLayout(self)
+        self.gaussFilterChbx = QCheckBox("Lọc trước qua phép lọc Gaussian (LoG):", self)
+        self.rowSbx = QSpinBox(self)
+        self.colSbx = QSpinBox(self)
+        for box in (self.rowSbx, self.colSbx):
+            box.setRange(1, 31)
+            box.setValue(3)
+            box.setEnabled(False)
+            _keep_odd(box)
+        size = QHBoxLayout()
+        size.addWidget(QLabel("Rộng", self))
+        size.addWidget(self.rowSbx)
+        size.addWidget(QLabel("Cao", self))
+        size.addWidget(self.colSbx)
+        form.addRow(self.gaussFilterChbx)
+        form.addRow(size)
+        _enable_with(self.gaussFilterChbx, self.rowSbx, self.colSbx)
+        self.kernelCbx = QComboBox(self)
+        for k in (1, 3, 5, 7):
+            self.kernelCbx.addItem(str(k), k)
+        self.kernelCbx.setCurrentIndex(1)
+        form.addRow("Kích thước nhân:", self.kernelCbx)
 
 
 class CannyWidget(QWidget, Ui_CannyWidget):

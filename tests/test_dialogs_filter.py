@@ -72,7 +72,7 @@ def test_widgets_keep_odd_and_canny_link(qgis_app, qtbot):
 def test_filter_dialog_init(filter_dialog, sample_raster):
     dlg = filter_dialog
     assert dlg.windowTitle() == "Lọc ảnh"
-    assert dlg.filterTypeCbx.count() == 7  # + Prewitt (not in the C++ app)
+    assert dlg.filterTypeCbx.count() == 8  # + Prewitt, Laplacian (not in the C++ app)
     assert dlg.rasterLayerCbx.count() == 1
     assert [dlg.bandCbx.itemText(i) for i in range(dlg.bandCbx.count())] == ["Kênh 1", "Kênh 2", "Kênh 3"]
     np.testing.assert_array_equal(dlg._src_image, _band(sample_raster, 1))
@@ -105,6 +105,8 @@ def _expected(code, src, dlg):
         return cv2.convertScaleAbs(cv2.Scharr(src, cv2.CV_16S, 1, 0))
     if code == m.LOC_CANNY:
         return cv2.Canny(cv2.blur(src, (3, 5)), 30.0, 90.0, apertureSize=3)
+    if code == m.LOC_LAPLACIAN:  # LoG: Gaussian 5x5 then 5x5 Laplacian
+        return cv2.convertScaleAbs(cv2.Laplacian(cv2.GaussianBlur(src, (5, 5), 0), cv2.CV_16S, ksize=5))
     if code == m.LOC_PREWITT:  # both directions: |(gx, gy)| with the textbook 3x3 kernels, no pre-filter
         f = src.astype(np.float64)
         p = np.pad(f, 1, mode="reflect")
@@ -134,6 +136,13 @@ def _configure(code, dlg):
         s.rowSbx.setValue(3)
         s.yAxisRbtn.setChecked(True)
         s.kernelSbx.setValue(5)
+    elif code == m.LOC_LAPLACIAN:
+        w = dlg.laplacianWidget
+        assert dlg.stackedWidget.currentWidget() is w and not w.rowSbx.isEnabled()
+        w.gaussFilterChbx.setChecked(True)
+        w.rowSbx.setValue(5)
+        w.colSbx.setValue(5)
+        w.kernelCbx.setCurrentIndex(w.kernelCbx.findData(5))
     elif code == m.LOC_PREWITT:
         assert dlg.stackedWidget.currentWidget() is dlg.prewittWidget
         dlg.prewittWidget.bothAxesRbtn.setChecked(True)
@@ -146,7 +155,7 @@ def _configure(code, dlg):
 
 
 @pytest.mark.parametrize("code", ["LOC_TB", "LOC_TV", "LOC_GAUSS", "LOC_SOBEL", "LOC_SCHARR", "LOC_CANNY",
-                                  "LOC_PREWITT"])
+                                  "LOC_PREWITT", "LOC_LAPLACIAN"])
 def test_filter_apply(filter_dialog, sample_raster, tmp_path, code):
     from qgis.core import QgsProject
 
@@ -257,6 +266,35 @@ def test_ihs_values_and_round_trip():
     back = ihs_to_bgr(bgr_to_ihs(img))
     err = np.abs(back.astype(int) - img.astype(int))
     assert err.mean() < 1.5 and err.max() <= 6  # only the 8-bit rounding of H and S is lost
+
+
+def test_cmyk_values_and_round_trip():
+    from vgeoint.app.dialogs.color_space_convertion import cmyk_to_rgb, rgb_to_cmyk
+
+    r, g, b = (np.array([[255, 0, 255, 128, 255]], np.uint8), np.array([[0, 0, 255, 128, 255]], np.uint8),
+               np.array([[0, 0, 0, 128, 255]], np.uint8))  # red, black, yellow, grey, white
+    c, m, y, k = rgb_to_cmyk([r, g, b])
+    assert [tuple(int(v[0, i]) for v in (c, m, y, k)) for i in range(5)] == [
+        (0, 255, 255, 0), (0, 0, 0, 255), (0, 0, 255, 0), (0, 0, 0, 127), (0, 0, 0, 0)]
+    rng = np.random.default_rng(1)
+    rgb = [rng.integers(0, 256, (32, 32), dtype=np.uint8) for _ in range(3)]
+    back = cmyk_to_rgb(rgb_to_cmyk(rgb))
+    assert max(int(np.abs(x.astype(int) - y.astype(int)).max()) for x, y in zip(back, rgb)) <= 2
+
+
+def test_cmyk_dialog_writes_four_bands(color_dialog, sample_raster, tmp_path, window, qtbot):
+    dlg = color_dialog
+    dlg.toColorCbx.setCurrentText("CMYK")
+    out = tmp_path / "cmyk.tif"
+    dlg.outputLedr.setText(str(out))
+    dlg.apply()
+    arr, gt, _, dtype = _read(out)
+    assert arr.shape == (4, 48, 64) and dtype == gdal.GDT_Byte
+    # back to RGB needs a 4-band image: the 3-band sample is refused with the reason
+    dlg.fromColorCbx.setCurrentText("CMYK")
+    dlg.toColorCbx.setCurrentText("RGB")
+    dlg.apply()
+    assert "cần ít nhất 4 kênh" in dlg.noticeLbl.text()
 
 
 def test_color_space_errors(color_dialog, sample_raster, tmp_path, window, qtbot):

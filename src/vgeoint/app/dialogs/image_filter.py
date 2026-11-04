@@ -11,7 +11,7 @@ from qgis.PyQt.QtGui import QImage, QPixmap
 from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from vgeoint.app.dialogs._feedback import notify_failure, notify_success
-from vgeoint.app.filter_widgets import PrewittWidget
+from vgeoint.app.filter_widgets import LaplacianWidget, PrewittWidget
 from vgeoint.app.plugins import RASTER
 from vgeoint.common.ui import load_ui_class
 from vgeoint.common.utils import get_icon, settings
@@ -29,6 +29,7 @@ LOC_SOBEL = "LOC_SOBEL"
 LOC_SCHARR = "LOC_SCHARR"
 LOC_CANNY = "LOC_CANNY"
 LOC_PREWITT = "LOC_PREWITT"  # not in the C++ app
+LOC_LAPLACIAN = "LOC_LAPLACIAN"  # not in the C++ app
 
 # Prewitt kernels (3x3): x = horizontal gradient (vertical edges), y = vertical gradient
 PREWITT_X = np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]], np.float32)
@@ -119,6 +120,8 @@ class ImageFilterDialog(QDialog, Ui_ImageFilterDialog):
         # Prewitt is not in the .ui (C++ app): its option widget is added to the stack here
         self.prewittWidget = PrewittWidget(self)
         self.stackedWidget.addWidget(self.prewittWidget)
+        self.laplacianWidget = LaplacianWidget(self)
+        self.stackedWidget.addWidget(self.laplacianWidget)
         self._init_filters()
 
         self.filterTypeCbx.currentIndexChanged.connect(self._filter_type_changed)
@@ -158,6 +161,7 @@ class ImageFilterDialog(QDialog, Ui_ImageFilterDialog):
         self.filterTypeCbx.addItem(get_icon("EdgeFilter.svg"), "Sobel", LOC_SOBEL)
         self.filterTypeCbx.addItem(get_icon("EdgeFilter.svg"), "Scharr", LOC_SCHARR)
         self.filterTypeCbx.addItem(get_icon("EdgeFilter.svg"), "Prewitt", LOC_PREWITT)
+        self.filterTypeCbx.addItem(get_icon("EdgeFilter.svg"), "Laplacian", LOC_LAPLACIAN)
         self.filterTypeCbx.addItem(get_icon("EdgeFilter.svg"), "Canny", LOC_CANNY)
 
     def _show_widget(self, widget):
@@ -173,6 +177,7 @@ class ImageFilterDialog(QDialog, Ui_ImageFilterDialog):
             LOC_SOBEL: self.sobelWidget,
             LOC_SCHARR: self.scharrWidget,
             LOC_PREWITT: self.prewittWidget,
+            LOC_LAPLACIAN: self.laplacianWidget,
             LOC_CANNY: self.cannyWidget,
         }.get(self.filterTypeCbx.currentData())
         if widget is not None:
@@ -258,6 +263,12 @@ class ImageFilterDialog(QDialog, Ui_ImageFilterDialog):
                     img = cv2.GaussianBlur(img, (w.colSbx.value(), w.rowSbx.value()), 0)
                 axis = "both" if w.bothAxesRbtn.isChecked() else ("x" if w.xAxisRbtn.isChecked() else "y")
                 return prewitt(img, axis)
+            if filter_type == LOC_LAPLACIAN:
+                w = self.laplacianWidget
+                img = src.copy()
+                if w.gaussFilterChbx.isChecked():
+                    img = cv2.GaussianBlur(img, (w.colSbx.value(), w.rowSbx.value()), 0)
+                return cv2.convertScaleAbs(cv2.Laplacian(img, cv2.CV_16S, ksize=w.kernelCbx.currentData()))
             if filter_type == LOC_CANNY:
                 w = self.cannyWidget
                 low = float(w.lowThresholdSbx.value())

@@ -54,8 +54,35 @@ def ihs_to_bgr(hsi: np.ndarray) -> np.ndarray:
     return np.clip(np.round(rgb[..., ::-1]), 0, 255).astype(np.uint8)
 
 
-# (from, to) -> OpenCV conversion code, or a function of an 8-bit BGR image (IHS: not in OpenCV).
-# IHS and Lab are not in the C++ app.
+class BandConversion:
+    """A conversion between band lists (natural order: band 1, 2, ...), for spaces without 3 channels.
+
+    The OpenCV ones keep the C++ band order (bands 1-3 = R, G, B in; channels written in reverse out).
+    """
+
+    def __init__(self, n_in: int, func):
+        self.n_in = n_in
+        self.func = func
+
+
+def rgb_to_cmyk(bands: list[np.ndarray]) -> list[np.ndarray]:
+    """R, G, B (8-bit) -> C, M, Y, K (8-bit, 255 = 100 % ink): K = 1 - max(R, G, B), C = (1 - R - K) / (1 - K)..."""
+    rgb = np.stack(bands[:3]).astype(np.float64) / 255.0
+    k = 1.0 - rgb.max(axis=0)
+    denom = np.where(k < 1.0, 1.0 - k, 1.0)
+    cmy = (1.0 - rgb - k) / denom
+    cmy[:, k >= 1.0] = 0.0  # black: no colour ink
+    return [np.clip(np.round(c * 255), 0, 255).astype(np.uint8) for c in (*cmy, k)]
+
+
+def cmyk_to_rgb(bands: list[np.ndarray]) -> list[np.ndarray]:
+    """C, M, Y, K (8-bit) -> R, G, B: R = 255 (1 - C)(1 - K)..."""
+    c, m, y, k = (b.astype(np.float64) / 255.0 for b in bands[:4])
+    return [np.clip(np.round(255 * (1 - x) * (1 - k)), 0, 255).astype(np.uint8) for x in (c, m, y)]
+
+
+# (from, to) -> OpenCV conversion code, a function of an 8-bit BGR image (IHS: not in OpenCV), or a
+# BandConversion (CMYK: 4 bands). IHS, Lab and CMYK are not in the C++ app.
 CONVERSIONS = {
     ("RGB", "HSV"): cv2.COLOR_BGR2HSV,
     ("RGB", "HLS"): cv2.COLOR_BGR2HLS,
@@ -65,8 +92,10 @@ CONVERSIONS = {
     ("Lab", "RGB"): cv2.COLOR_Lab2BGR,
     ("RGB", "IHS"): bgr_to_ihs,
     ("IHS", "RGB"): ihs_to_bgr,
+    ("RGB", "CMYK"): BandConversion(3, rgb_to_cmyk),
+    ("CMYK", "RGB"): BandConversion(4, cmyk_to_rgb),
 }
-COLOR_SPACES = ("RGB", "HSV", "HLS", "IHS", "Lab")
+COLOR_SPACES = ("RGB", "HSV", "HLS", "IHS", "Lab", "CMYK")
 
 
 def _red(text: str) -> str:
@@ -142,12 +171,13 @@ class ColorSpaceConvertionDialog(QDialog, Ui_ColorSpaceConvertionDialog):
             s.setValue("SaveImage/Dir", store_dir)
 
     def convert_color(self, layer: QgsRasterLayer, code, output: str) -> str | None:
-        """Convert the first 3 bands of `layer` into `output`. Return why it failed, None on success."""
+        """Convert the first 3 (CMYK: 4) bands of `layer` into `output`. Return why it failed, None on success."""
         if layer is None or not layer.isValid():
             return "Ảnh đầu vào không hợp lệ"
         prov = layer.dataProvider()
-        if prov.bandCount() < 3:
-            return f"Ảnh {layer.name()} chỉ có {prov.bandCount()} kênh, cần ít nhất 3 kênh"
+        n_in = code.n_in if isinstance(code, BandConversion) else 3
+        if prov.bandCount() < n_in:
+            return f"Ảnh {layer.name()} chỉ có {prov.bandCount()} kênh, cần ít nhất {n_in} kênh"
         # Một byte
         if prov.dataTypeSize(1) != 1:
             return (
@@ -161,14 +191,18 @@ class ColorSpaceConvertionDialog(QDialog, Ui_ColorSpaceConvertionDialog):
         self.progressBar.show()
         self.progressBar.setValue(25)
         try:
-            b1, b2, b3 = (read_band_u8(layer, b) for b in (1, 2, 3))
-            if any(b is None for b in (b1, b2, b3)):
+            inputs = [read_band_u8(layer, b) for b in range(1, n_in + 1)]
+            if any(b is None for b in inputs):
                 return f"Không đọc được dữ liệu ảnh {layer.name()}"
             self.progressBar.setValue(50)
-            # C++: merge(band3, band2, band1) -> cvtColor -> split ghi đè lại vào block3, block2, block1
-            src = np.dstack((b3, b2, b1))
-            dst = code(src) if callable(code) else cv2.cvtColor(src, code)
-            bands = [dst[:, :, 2], dst[:, :, 1], dst[:, :, 0]]
+            if isinstance(code, BandConversion):
+                bands = code.func(inputs)
+            else:
+                # C++: merge(band3, band2, band1) -> cvtColor -> split ghi đè lại vào block3, block2, block1
+                b1, b2, b3 = inputs
+                src = np.dstack((b3, b2, b1))
+                dst = code(src) if callable(code) else cv2.cvtColor(src, code)
+                bands = [dst[:, :, 2], dst[:, :, 1], dst[:, :, 0]]
             self.progressBar.setValue(75)
             gdal.ErrorReset()
             if not write_geotiff_u8(output, bands, layer.extent(), layer.crs()) or not os.path.exists(output):
@@ -196,7 +230,7 @@ class ColorSpaceConvertionDialog(QDialog, Ui_ColorSpaceConvertionDialog):
         elif from_text == to_text:
             reason = f"Không gian màu nguồn và đích giống nhau ({from_text})"
         elif code is None:
-            reason = f"Không hỗ trợ chuyển {from_text} sang {to_text} (chỉ hỗ trợ RGB ↔ HSV, HLS, IHS, Lab)"
+            reason = f"Không hỗ trợ chuyển {from_text} sang {to_text} (chỉ hỗ trợ RGB ↔ HSV, HLS, IHS, Lab, CMYK)"
         else:
             reason = self.convert_color(layer, code, output)
 
