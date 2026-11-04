@@ -1,6 +1,7 @@
-"""Port of AveragingWidget, GaussianWidget, MedianWidget, SobelWidget, ScharrWidget, CannyWidget (.cpp)."""
+"""Port of AveragingWidget, GaussianWidget, MedianWidget, SobelWidget, ScharrWidget, CannyWidget (.cpp);
+PrewittWidget is new (not in the C++ app)."""
 
-from qgis.PyQt.QtWidgets import QSpinBox, QWidget
+from qgis.PyQt.QtWidgets import QRadioButton, QSpinBox, QWidget
 
 from vgeoint.common.ui import load_ui_class
 
@@ -70,6 +71,15 @@ class ScharrWidget(QWidget, Ui_ScharrWidget):
         _enable_with(self.gaussFilterChbx, self.rowSbx, self.colSbx)
         _keep_odd(self.rowSbx)
         _keep_odd(self.colSbx)
+
+
+class PrewittWidget(ScharrWidget):
+    """Scharr's options (Gaussian pre-filter, X / Y direction) plus both directions (gradient magnitude)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.bothAxesRbtn = QRadioButton("Cả hai hướng (độ lớn gradient)", self)
+        self.gridLayout.addWidget(self.bothAxesRbtn, 4, 0)
 
 
 class CannyWidget(QWidget, Ui_CannyWidget):

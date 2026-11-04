@@ -72,7 +72,7 @@ def test_widgets_keep_odd_and_canny_link(qgis_app, qtbot):
 def test_filter_dialog_init(filter_dialog, sample_raster):
     dlg = filter_dialog
     assert dlg.windowTitle() == "Lọc ảnh"
-    assert dlg.filterTypeCbx.count() == 6
+    assert dlg.filterTypeCbx.count() == 7  # + Prewitt (not in the C++ app)
     assert dlg.rasterLayerCbx.count() == 1
     assert [dlg.bandCbx.itemText(i) for i in range(dlg.bandCbx.count())] == ["Kênh 1", "Kênh 2", "Kênh 3"]
     np.testing.assert_array_equal(dlg._src_image, _band(sample_raster, 1))
@@ -105,6 +105,12 @@ def _expected(code, src, dlg):
         return cv2.convertScaleAbs(cv2.Scharr(src, cv2.CV_16S, 1, 0))
     if code == m.LOC_CANNY:
         return cv2.Canny(cv2.blur(src, (3, 5)), 30.0, 90.0, apertureSize=3)
+    if code == m.LOC_PREWITT:  # both directions: |(gx, gy)| with the textbook 3x3 kernels, no pre-filter
+        f = src.astype(np.float64)
+        p = np.pad(f, 1, mode="reflect")
+        gx = (p[:-2, 2:] + p[1:-1, 2:] + p[2:, 2:]) - (p[:-2, :-2] + p[1:-1, :-2] + p[2:, :-2])
+        gy = (p[2:, :-2] + p[2:, 1:-1] + p[2:, 2:]) - (p[:-2, :-2] + p[:-2, 1:-1] + p[:-2, 2:])
+        return np.clip(np.round(np.hypot(gx, gy)), 0, 255).astype(np.uint8)
 
 
 def _configure(code, dlg):
@@ -128,6 +134,9 @@ def _configure(code, dlg):
         s.rowSbx.setValue(3)
         s.yAxisRbtn.setChecked(True)
         s.kernelSbx.setValue(5)
+    elif code == m.LOC_PREWITT:
+        assert dlg.stackedWidget.currentWidget() is dlg.prewittWidget
+        dlg.prewittWidget.bothAxesRbtn.setChecked(True)
     elif code == m.LOC_CANNY:
         c = dlg.cannyWidget
         c.averagingFilterChbx.setChecked(True)
@@ -136,7 +145,8 @@ def _configure(code, dlg):
         c.lowThresholdSbx.setValue(30)  # high = 90
 
 
-@pytest.mark.parametrize("code", ["LOC_TB", "LOC_TV", "LOC_GAUSS", "LOC_SOBEL", "LOC_SCHARR", "LOC_CANNY"])
+@pytest.mark.parametrize("code", ["LOC_TB", "LOC_TV", "LOC_GAUSS", "LOC_SOBEL", "LOC_SCHARR", "LOC_CANNY",
+                                  "LOC_PREWITT"])
 def test_filter_apply(filter_dialog, sample_raster, tmp_path, code):
     from qgis.core import QgsProject
 
@@ -203,7 +213,8 @@ def color_dialog(loaded, qtbot):
 @pytest.mark.parametrize(
     "src_cs,dst_cs,code",
     [("RGB", "HSV", cv2.COLOR_BGR2HSV), ("RGB", "HLS", cv2.COLOR_BGR2HLS), ("HSV", "RGB", cv2.COLOR_HSV2BGR),
-     ("HLS", "RGB", cv2.COLOR_HLS2BGR)],
+     ("HLS", "RGB", cv2.COLOR_HLS2BGR), ("RGB", "Lab", cv2.COLOR_BGR2Lab), ("Lab", "RGB", cv2.COLOR_Lab2BGR),
+     ("RGB", "IHS", "bgr_to_ihs"), ("IHS", "RGB", "ihs_to_bgr")],
 )
 def test_color_space_convert(color_dialog, sample_raster, tmp_path, src_cs, dst_cs, code):
     dlg = color_dialog
@@ -221,11 +232,31 @@ def test_color_space_convert(color_dialog, sample_raster, tmp_path, src_cs, dst_
     src, src_gt, _, _ = _read(sample_raster)
     assert dtype == gdal.GDT_Byte and arr.shape == (3, 48, 64)
     np.testing.assert_allclose(gt, src_gt)
-    dst = cv2.cvtColor(np.dstack((src[2], src[1], src[0])), code)
+    from vgeoint.app.dialogs import color_space_convertion as m
+
+    bgr = np.dstack((src[2], src[1], src[0]))
+    dst = getattr(m, code)(bgr) if isinstance(code, str) else cv2.cvtColor(bgr, code)
     # C++: kết quả split ghi vào block3, block2, block1 -> band1 = kênh 2 của dst
     np.testing.assert_array_equal(arr, np.stack((dst[:, :, 2], dst[:, :, 1], dst[:, :, 0])))
     assert completed and dlg.output_files() == [str(out)]
     assert "thành công" in dlg.noticeLbl.text()
+
+
+def test_ihs_values_and_round_trip():
+    from vgeoint.app.dialogs.color_space_convertion import bgr_to_ihs, ihs_to_bgr
+
+    # 8-bit (H, S, I): grey has no saturation; pure red: I = 85, S = |(-60.1, 180.3)| = 190, H = 108.4° -> 77
+    px = np.array([[[128, 128, 128], [0, 0, 255], [255, 0, 0]]], np.uint8)  # BGR: grey, red, blue
+    hsi = bgr_to_ihs(px)
+    assert hsi[0, 0, 1] == 0 and hsi[0, 0, 2] == 128
+    assert tuple(hsi[0, 1]) == (77, 190, 85)
+    assert hsi[0, 2, 1] == 120 and hsi[0, 2, 2] == 85  # blue: v1 = 2*sqrt(2)/6*255 = 120.2, v2 = 0 -> H = 0
+    assert hsi[0, 2, 0] == 0
+    rng = np.random.default_rng(0)
+    img = rng.integers(0, 256, (64, 64, 3), dtype=np.uint8)
+    back = ihs_to_bgr(bgr_to_ihs(img))
+    err = np.abs(back.astype(int) - img.astype(int))
+    assert err.mean() < 1.5 and err.max() <= 6  # only the 8-bit rounding of H and S is lost
 
 
 def test_color_space_errors(color_dialog, sample_raster, tmp_path, window, qtbot):

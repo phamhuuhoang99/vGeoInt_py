@@ -27,13 +27,46 @@ Ui_ColorSpaceConvertionDialog = load_ui_class("app", "ColorSpaceConvertionDialog
 
 T_COLOR_SPACE_CONVERTION = "T_ColorSpaceConvertionPlugin"
 
-# (from, to) -> OpenCV conversion code
+SQ2 = np.sqrt(2.0)
+# Linear IHS model of remote sensing (ERDAS / ENVI, pan-sharpening): I = mean of R, G, B; (v1, v2) the
+# chromatic plane; H = angle, S = length of (v1, v2). Rows: I, v1, v2 = RGB_TO_IHS @ (R, G, B).
+RGB_TO_IHS = np.array([[1 / 3, 1 / 3, 1 / 3],
+                       [-SQ2 / 6, -SQ2 / 6, 2 * SQ2 / 6],
+                       [1 / SQ2, -1 / SQ2, 0.0]])
+IHS_TO_RGB = np.linalg.inv(RGB_TO_IHS)
+
+
+def bgr_to_ihs(bgr: np.ndarray) -> np.ndarray:
+    """8-bit BGR -> 8-bit channels (H, S, I), like OpenCV's (H, S, V): H in 0-255 for 0-360°, S = |(v1, v2)|
+    (at most 208 for 8-bit RGB, so not rescaled), I = (R + G + B) / 3."""
+    rgb = bgr[..., ::-1].astype(np.float64)
+    i, v1, v2 = np.moveaxis(rgb @ RGB_TO_IHS.T, -1, 0)
+    h = (np.degrees(np.arctan2(v2, v1)) % 360.0) * 255.0 / 360.0
+    sat = np.hypot(v1, v2)
+    return np.clip(np.round(np.dstack((h, sat, i))), 0, 255).astype(np.uint8)
+
+
+def ihs_to_bgr(hsi: np.ndarray) -> np.ndarray:
+    """Inverse of bgr_to_ihs (exact up to the 8-bit rounding of H: steps of 1.4°)."""
+    h = np.radians(hsi[..., 0].astype(np.float64) * 360.0 / 255.0)
+    sat, i = hsi[..., 1].astype(np.float64), hsi[..., 2].astype(np.float64)
+    rgb = np.dstack((i, sat * np.cos(h), sat * np.sin(h))) @ IHS_TO_RGB.T
+    return np.clip(np.round(rgb[..., ::-1]), 0, 255).astype(np.uint8)
+
+
+# (from, to) -> OpenCV conversion code, or a function of an 8-bit BGR image (IHS: not in OpenCV).
+# IHS and Lab are not in the C++ app.
 CONVERSIONS = {
     ("RGB", "HSV"): cv2.COLOR_BGR2HSV,
     ("RGB", "HLS"): cv2.COLOR_BGR2HLS,
     ("HSV", "RGB"): cv2.COLOR_HSV2BGR,
     ("HLS", "RGB"): cv2.COLOR_HLS2BGR,
+    ("RGB", "Lab"): cv2.COLOR_BGR2Lab,  # 8-bit Lab: L*255/100, a+128, b+128
+    ("Lab", "RGB"): cv2.COLOR_Lab2BGR,
+    ("RGB", "IHS"): bgr_to_ihs,
+    ("IHS", "RGB"): ihs_to_bgr,
 }
+COLOR_SPACES = ("RGB", "HSV", "HLS", "IHS", "Lab")
 
 
 def _red(text: str) -> str:
@@ -59,10 +92,10 @@ class ColorSpaceConvertionDialog(QDialog, Ui_ColorSpaceConvertionDialog):
         self.setWindowTitle(self.vn_name())
         self.progressBar.hide()
 
-        for text in ("RGB", "HSV", "HLS"):
+        for text in COLOR_SPACES:
             self.fromColorCbx.addItem(get_icon("Rgb.svg"), text)
         self.fromColorCbx.setCurrentIndex(0)
-        for text in ("RGB", "HSV", "HLS"):
+        for text in COLOR_SPACES:
             self.toColorCbx.addItem(get_icon("Rgb.svg"), text)
         self.toColorCbx.setCurrentIndex(1)
 
@@ -108,7 +141,7 @@ class ColorSpaceConvertionDialog(QDialog, Ui_ColorSpaceConvertionDialog):
         if store_dir and store_dir != directory:
             s.setValue("SaveImage/Dir", store_dir)
 
-    def convert_color(self, layer: QgsRasterLayer, code: int, output: str) -> str | None:
+    def convert_color(self, layer: QgsRasterLayer, code, output: str) -> str | None:
         """Convert the first 3 bands of `layer` into `output`. Return why it failed, None on success."""
         if layer is None or not layer.isValid():
             return "Ảnh đầu vào không hợp lệ"
@@ -133,7 +166,8 @@ class ColorSpaceConvertionDialog(QDialog, Ui_ColorSpaceConvertionDialog):
                 return f"Không đọc được dữ liệu ảnh {layer.name()}"
             self.progressBar.setValue(50)
             # C++: merge(band3, band2, band1) -> cvtColor -> split ghi đè lại vào block3, block2, block1
-            dst = cv2.cvtColor(np.dstack((b3, b2, b1)), code)
+            src = np.dstack((b3, b2, b1))
+            dst = code(src) if callable(code) else cv2.cvtColor(src, code)
             bands = [dst[:, :, 2], dst[:, :, 1], dst[:, :, 0]]
             self.progressBar.setValue(75)
             gdal.ErrorReset()
@@ -162,7 +196,7 @@ class ColorSpaceConvertionDialog(QDialog, Ui_ColorSpaceConvertionDialog):
         elif from_text == to_text:
             reason = f"Không gian màu nguồn và đích giống nhau ({from_text})"
         elif code is None:
-            reason = f"Không hỗ trợ chuyển {from_text} sang {to_text} (chỉ hỗ trợ RGB ↔ HSV, RGB ↔ HLS)"
+            reason = f"Không hỗ trợ chuyển {from_text} sang {to_text} (chỉ hỗ trợ RGB ↔ HSV, HLS, IHS, Lab)"
         else:
             reason = self.convert_color(layer, code, output)
 

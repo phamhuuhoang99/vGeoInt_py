@@ -11,6 +11,7 @@ from qgis.PyQt.QtGui import QImage, QPixmap
 from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from vgeoint.app.dialogs._feedback import notify_failure, notify_success
+from vgeoint.app.filter_widgets import PrewittWidget
 from vgeoint.app.plugins import RASTER
 from vgeoint.common.ui import load_ui_class
 from vgeoint.common.utils import get_icon, settings
@@ -27,6 +28,19 @@ LOC_GAUSS = "LOC_GAUSS"
 LOC_SOBEL = "LOC_SOBEL"
 LOC_SCHARR = "LOC_SCHARR"
 LOC_CANNY = "LOC_CANNY"
+LOC_PREWITT = "LOC_PREWITT"  # not in the C++ app
+
+# Prewitt kernels (3x3): x = horizontal gradient (vertical edges), y = vertical gradient
+PREWITT_X = np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]], np.float32)
+PREWITT_Y = PREWITT_X.T.copy()
+
+
+def prewitt(src: np.ndarray, axis: str) -> np.ndarray:
+    """|Prewitt gradient| as uint8; axis "x", "y" or "both" (magnitude sqrt(gx² + gy²))."""
+    gx = cv2.filter2D(src, cv2.CV_32F, PREWITT_X) if axis in ("x", "both") else None
+    gy = cv2.filter2D(src, cv2.CV_32F, PREWITT_Y) if axis in ("y", "both") else None
+    grad = cv2.magnitude(gx, gy) if axis == "both" else (gx if gx is not None else gy)
+    return cv2.convertScaleAbs(grad)
 
 
 # ----------------------------------------------------------------- raster helpers (shared with color_space_convertion)
@@ -102,6 +116,9 @@ class ImageFilterDialog(QDialog, Ui_ImageFilterDialog):
         self._src_image: np.ndarray | None = None
         self.setWindowTitle(self.vn_name())
         self.setWindowIcon(self.get_icon())
+        # Prewitt is not in the .ui (C++ app): its option widget is added to the stack here
+        self.prewittWidget = PrewittWidget(self)
+        self.stackedWidget.addWidget(self.prewittWidget)
         self._init_filters()
 
         self.filterTypeCbx.currentIndexChanged.connect(self._filter_type_changed)
@@ -140,6 +157,7 @@ class ImageFilterDialog(QDialog, Ui_ImageFilterDialog):
         self.filterTypeCbx.addItem(get_icon("SmoothFilter.svg"), "Gaussian", LOC_GAUSS)
         self.filterTypeCbx.addItem(get_icon("EdgeFilter.svg"), "Sobel", LOC_SOBEL)
         self.filterTypeCbx.addItem(get_icon("EdgeFilter.svg"), "Scharr", LOC_SCHARR)
+        self.filterTypeCbx.addItem(get_icon("EdgeFilter.svg"), "Prewitt", LOC_PREWITT)
         self.filterTypeCbx.addItem(get_icon("EdgeFilter.svg"), "Canny", LOC_CANNY)
 
     def _show_widget(self, widget):
@@ -154,6 +172,7 @@ class ImageFilterDialog(QDialog, Ui_ImageFilterDialog):
             LOC_GAUSS: self.gaussianWidget,
             LOC_SOBEL: self.sobelWidget,
             LOC_SCHARR: self.scharrWidget,
+            LOC_PREWITT: self.prewittWidget,
             LOC_CANNY: self.cannyWidget,
         }.get(self.filterTypeCbx.currentData())
         if widget is not None:
@@ -232,6 +251,13 @@ class ImageFilterDialog(QDialog, Ui_ImageFilterDialog):
                     img = cv2.GaussianBlur(img, (w.colSbx.value(), w.rowSbx.value()), 0)
                 dx, dy = (1, 0) if w.xAxisRbtn.isChecked() else (0, 1)
                 return cv2.convertScaleAbs(cv2.Scharr(img, cv2.CV_16S, dx, dy))
+            if filter_type == LOC_PREWITT:
+                w = self.prewittWidget
+                img = src.copy()
+                if w.gaussFilterChbx.isChecked():
+                    img = cv2.GaussianBlur(img, (w.colSbx.value(), w.rowSbx.value()), 0)
+                axis = "both" if w.bothAxesRbtn.isChecked() else ("x" if w.xAxisRbtn.isChecked() else "y")
+                return prewitt(img, axis)
             if filter_type == LOC_CANNY:
                 w = self.cannyWidget
                 low = float(w.lowThresholdSbx.value())
